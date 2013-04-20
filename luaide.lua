@@ -260,7 +260,7 @@ local function scrollingPrompt(list)
 
 		if e == "mouse_click" then
 			for i, v in ipairs(disList) do
-				if x >= 3 and x <= w - 13 and y == i * 4 + 5 then return v end
+				if x >= 3 and x <= w - 11 and y >= i * 4 + 3 and y <= i * 4 + 5 then return v end
 			end
 		elseif e == "key" and key == 200 then
 			if sel > 1 then
@@ -280,6 +280,8 @@ local function scrollingPrompt(list)
 				disList = updateDisplayList(list, loc, len)
 				draw(disList, sel)
 			end
+		elseif e == "mouse_scroll" then
+			os.queueEvent("key", key == -1 and 200 or 208)
 		elseif e == "key" and key == 28 then
 			return disList[sel]
 		end
@@ -532,24 +534,41 @@ local function run(path, lines, useArgs)
 
 			term.setBackgroundColor(colors[theme.err])
 			for i = 6, 8 do
-				term.setCursorPos(5, i)
-				term.write(string.rep(" ", 40))
+				term.setCursorPos(3, i)
+				term.write(string.rep(" ", w - 5))
 			end
-			term.setCursorPos(6, 7)
+			term.setCursorPos(4, 7)
 			term.write("The program has crashed!")
 
 			term.setBackgroundColor(colors[theme.prompt])
 			for i = 10, 14 do
-				term.setCursorPos(5, i)
-				term.write(string.rep(" ", 40))
+				term.setCursorPos(3, i)
+				term.write(string.rep(" ", w - 5))
 			end
 			local formattedErr = parseError(err)
-			term.setCursorPos(6, 11)
+			term.setCursorPos(4, 11)
 			term.write("Line: " .. formattedErr.line)
-			term.setCursorPos(6, 12)
+			term.setCursorPos(4, 12)
 			term.write("Error:")
-			term.setCursorPos(7, 13)
-			term.write(formattedErr.display)
+			term.setCursorPos(5, 13)
+
+			local a = formattedErr.display
+			local b = nil
+			if a:len() > w - 8 then
+				for i = a:len(), 1, -1 do
+					if a:sub(i, i) == " " then
+						b = a:sub(i + 1, -1)
+						a = a:sub(1, i)
+						break
+					end
+				end
+			end
+
+			term.write(a)
+			if b then
+				term.setCursorPos(5, 14)
+				term.write(b)
+			end
 			
 			local opt = prompt({{"Error Help", w/2 - 15, 17}, {"Go To Line", w/2 + 2, 17}},
 				"horizontal")
