@@ -1,17 +1,8 @@
 
 --  
 --  Lua IDE
---  Made by GravityScore and 1lann
+--  Made by GravityScore
 --  
-
-
--- To Do:
--- - Fix/Test updating
--- - Fix/Test themes
--- - Re-Indent
-
--- 1.1:
--- - Print
 
 
 --  -------- Variables
@@ -26,6 +17,7 @@ local autoupdate = true
 -- Editing
 local w, h = term.getSize()
 local highlightSyntax = true
+local liveErrors = true
 local tabWidth = 2
 
 local autosaveInterval = 20
@@ -168,7 +160,7 @@ end
 
 --  -------- Prompt
 
-local function prompt(list, dir)
+local function prompt(list, dir, isGrid)
 	local function draw(sel)
 		for i, v in ipairs(list) do
 			if i == sel then term.setBackgroundColor(v.highlight or colors[theme.promptHighlight])
@@ -188,11 +180,8 @@ local function prompt(list, dir)
 		end
 	end
 
-	local key1 = 200
-	if dir == "horizontal" then key1 = 203 end
-	local key2 = 208
-	if dir == "horizontal" then key2 = 205 end
-
+	local key1 = dir == "horizontal" and 203 or 200
+	local key2 = dir == "horizontal" and 205 or 208
 	local sel = 1
 	draw(sel)
 
@@ -206,9 +195,15 @@ local function prompt(list, dir)
 		elseif e == "key" and but == key2 and ((err == true and sel < #list - 1) or (sel < #list)) then
 			sel = sel + 1
 			draw(sel)
+		elseif isGrid and e == "key" and but == 203 and sel > 2 then
+			sel = sel - 2
+			draw(sel)
+		elseif isGrid and e == "key" and but == 205 and sel < 3 then
+			sel = sel + 2
+			draw(sel)
 		elseif e == "mouse_click" then
 			for i, v in ipairs(list) do
-				if x >= v[2] and x <= v[2] + v[1]:len() + 2 and y == v[3] then
+				if x >= v[2] - 1 and x <= v[2] + v[1]:len() + 3 and y >= v[3] - 1 and y <= v[3] + 1 then
 					return list[i][1]
 				end
 			end
@@ -265,9 +260,7 @@ local function scrollingPrompt(list)
 
 		if e == "mouse_click" then
 			for i, v in ipairs(disList) do
-				if x >= 3 and x <= w - 13 and y == i * 4 + 5 then
-					return v
-				end
+				if x >= 3 and x <= w - 13 and y == i * 4 + 5 then return v end
 			end
 		elseif e == "key" and key == 200 then
 			if sel > 1 then
@@ -294,18 +287,18 @@ local function scrollingPrompt(list)
 end
 
 function monitorKeyboardShortcuts()
-	local sTimer, seTimer = nil, nil
+	local ta, tb = nil, nil
 	local allowChar = false
 	local shiftPressed = false
 	while true do
 		local event, char = os.pullEvent()
 		if event == "key" and char == 42 then
 			shiftPressed = true
-			seTimer = os.startTimer(keyboardShortcutTimeout)
+			tb = os.startTimer(keyboardShortcutTimeout)
 		elseif event == "key" and char == 29 then
 			allowEditorEvent = false
 			allowChar = true
-			sTimer = os.startTimer(keyboardShortcutTimeout)
+			ta = os.startTimer(keyboardShortcutTimeout)
 		elseif event == "key" and allowChar then
 			local name = nil
 			for k, v in pairs(keys) do
@@ -316,10 +309,10 @@ function monitorKeyboardShortcuts()
 					allowEditorEvent = true
 				end
 			end
-		elseif event == "timer" and char == sTimer then
+		elseif event == "timer" and char == ta then
 			allowEditorEvent = true
 			allowChar = false
-		elseif event == "timer" and char == seTimer then
+		elseif event == "timer" and char == tb then
 			shiftPressed = false
 		end
 	end
@@ -347,11 +340,8 @@ local function download(url, path)
 end
 
 local function saveFile(path, lines)
-	-- Create encasing directories
 	local dir = path:sub(1, path:len() - fs.getName(path):len())
 	if not(fs.exists(dir)) then fs.makeDir(dir) end
-
-	-- Save
 	if not fs.isDir(path) and not fs.isReadOnly(path) then
 		local a = ""
 		for _, v in pairs(lines) do a = a .. v .. "\n" end
@@ -364,14 +354,12 @@ local function saveFile(path, lines)
 end
 
 local function loadFile(path)
-	-- If doesn't exist
 	if not fs.exists(path) then
 		local f = io.open(path, "w")
 		f:write("")
 		f:close()
 	end
 
-	-- Load
 	local l = {}
 	if fs.exists(path) and not fs.isDir(path) then
 		local f = io.open(path, "r")
@@ -385,16 +373,12 @@ local function loadFile(path)
 		end
 	else return nil end
 
-	-- Return
 	if #l < 1 then table.insert(l, "") end
 	return l
 end
 
 
 --  -------- Compiler Errors
-
--- Error syntax:
--- {filename = "test", line = 4, display = "End Expected", err = "test:4: end expected"}
 
 local helpTips = {
 	"A function you tried to call doesn't exist.",
@@ -404,6 +388,7 @@ local helpTips = {
 	"A function/variable doesn't exist.",
 	"You missed an 'end'.",
 	"You missed a 'then'.",
+	"You declared a variable incorrectly.",
 }
 
 local errors = {
@@ -411,16 +396,20 @@ local errors = {
 	["Attempt to index nil."] = {3, 2},
 	[".+ expected, got .+"] = {4, 2},
 	["'end' expected"] = {6, 2},
-	["'then' expected"] = {7, 2}
+	["'then' expected"] = {7, 2},
+	["'=' expected"] = {8, 2}
 }
 
 local function parseError(e)
-	local ret = {filename = "unknown", line = -1, display = "Unknown!", err = e}
-	ret.filename = e:sub(1, e:find(":") - 1)
-	e = e:sub(e:find(":") + 1) .. "" -- The "" is needed to circumvent a CC bug
-	ret.line = e:sub(1, e:find(":") - 1)
-	e = e:sub(e:find(":") + 2):gsub("^%s*(.-)%s*$", "%1") .. ""
-	ret.display = e:sub(1, 1):upper() .. e:sub(2) .. "."
+	local ret = {filename = "unknown", line = -1, display = "Unknown!", err = ""}
+	if e and e ~= "" then
+		ret.err = e
+		ret.filename = e:sub(1, e:find(":") - 1)
+		e = e:sub(e:find(":") + 1) .. "" -- The "" is needed to circumvent a CC bug
+		ret.line = e:sub(1, e:find(":") - 1)
+		e = e:sub(e:find(":") + 2):gsub("^%s*(.-)%s*$", "%1") .. ""
+		ret.display = e:sub(1, 1):upper() .. e:sub(2) .. "."
+	end
 
 	return ret
 end
@@ -451,6 +440,7 @@ local function viewErrorHelp(e)
 		term.setCursorPos(6, 7)
 		term.write("Error Help")
 
+		term.setBackgroundColor(colors[theme.prompt])
 		for i, v in ipairs(tips) do
 			term.setCursorPos(7, i + 10)
 			term.write("- " .. helpTips[v])
@@ -476,14 +466,19 @@ local function viewErrorHelp(e)
 end
 
 local function getCompilerErrors(code)
-	code = "return\n" .. code
+	code = "local function ee65da6af1cb6f63fee9a081246f2fd92b36ef2()\n\n" .. code .. "\n\nend"
 	local fn, err = loadstring(code)
 	if not err then
-		_, err = pcall(code)
+		local _, e = pcall(fn)
+		if e then err = e end
 	end
 
-	if err then return parseError(err)
-	else return {} end
+	if err then
+		err = "string" .. err:sub(err:find("]", 1, true) + 1, -1)
+		local ret = parseError(err)
+		if tonumber(ret.line) then ret.line = tonumber(ret.line) end
+		return ret
+	else return parseError(nil) end
 end
 
 
@@ -496,7 +491,6 @@ local function run(path, lines, useArgs)
 		local s = centerRead(w - 13, fs.getName(path) .. " ")
 		for m in string.gmatch(s, "[^ \t]+") do ar[#ar + 1] = m:gsub("^%s*(.-)%s*$", "%1") end
 	end
-
 	
 	saveFile(path, lines)
 	term.setCursorBlink(false)
@@ -528,8 +522,9 @@ local function run(path, lines, useArgs)
 	os.pullEvent()
 
 	if err then
+		err = fs.getName(path) .. err:sub(err:find("]", 1, true) + 1, -1)
 		while true do
-			title("LuaIDE - Error! D:")
+			title("LuaIDE - Error!")
 
 			term.setBackgroundColor(colors[theme.err])
 			for i = 6, 8 do
@@ -537,7 +532,7 @@ local function run(path, lines, useArgs)
 				term.write(string.rep(" ", 40))
 			end
 			term.setCursorPos(6, 7)
-			term.write("The program has crashed! D:")
+			term.write("The program has crashed!")
 
 			term.setBackgroundColor(colors[theme.prompt])
 			for i = 10, 14 do
@@ -588,26 +583,15 @@ local function goto()
 	end
 end
 
---[[local incrementIndent = {"if", "do", "repeat", "function"}
+--[[
+local incrementIndent = {"if", "do", "repeat", "function"}
 local decrementIndent = {"end", "until"}
 local specialIndent = {"elseif", "else"}
 
-local function reindent(l)
-	if highlightSyntax then
-		local ret = {}
-		local curIndent = 0
+local function reindent(code)
 
-		for i, v in ipairs(l) do
-			-- Remove and add
-			ret[i] = v:gsub("^%s*(.-)", "%1")
-			--ret[i] = string.rep(" ", curIndent * tabWidth) .. ret[i]
-		end
-
-		return ret
-	else
-		return l
-	end
-end]]
+end
+]]--
 
 
 --  -------- Menu
@@ -666,7 +650,7 @@ local menu = {
 		"Clear Line"
 	}, [3] = {"Functions",
 		"Go To Line   ^+G",
-		"Re-Indent    ^+I",
+--		"Re-Indent    ^+I",
 		"Toggle Colouring"
 	}, [4] = {"Run",
 		"Run Program       ^+R",
@@ -692,7 +676,7 @@ local shortcuts = {
 
 	-- Functions
 	["ctrl g"] = "Go To Line   ^+G",
-	["ctrl i"] = "Re-Indent    ^+I",
+--	["ctrl i"] = "Re-Indent    ^+I",
 	["0"] = "Toggle Colouring",
 
 	-- Run
@@ -720,8 +704,8 @@ local menuFunctions = {
 
 	-- Functions
 	["Go To Line   ^+G"] = function() return nil, "go to", goto() end,
-	["Re-Indent    ^+I"] = function(path, lines)
-		local a = reindent(lines) saveFile(path, lines) return nil end,
+--	["Re-Indent    ^+I"] = function(path, lines)
+--		local a = reindent(lines) saveFile(path, lines) return nil end,
 	["Toggle Colouring"] = function() highlightSyntax = not highlightSyntax end,
 
 	-- Run
@@ -765,9 +749,7 @@ local function drawMenu(open)
 		end
 
 		local len = 1
-		for _, v in pairs(items) do
-			if v:len() + 2 > len then len = v:len() + 2 end
-		end
+		for _, v in pairs(items) do if v:len() + 2 > len then len = v:len() + 2 end end
 
 		for i, v in ipairs(items) do
 			term.setCursorPos(x, i + 1)
@@ -849,6 +831,7 @@ local edw, edh = 0, h - 1
 local offx, offy = 0, 1
 local scrollx, scrolly = 0, 0
 local lines = {}
+local liveErr = parseError(nil)
 
 local function attemptToHighlight(line, regex, col)
 	local match = string.match(line, regex)
@@ -894,23 +877,41 @@ local function draw()
 	for i = 1, edh do
 		local a = lines[scrolly + i]
 		if a then
-			local ln = string.rep(" ", offx - 1 - tostring(scrolly + i):len()) ..
-				tostring(scrolly + i) .. ":"
+			local ln = string.rep(" ", offx - 1 - tostring(scrolly + i):len()) .. tostring(scrolly + i) 
 			local l = a:sub(scrollx + 1, edw + scrollx + 1)
+			ln = ln .. ":"
+
+			if liveErr.line == scrolly + i then ln = string.rep(" ", offx - 2) .. "!:" end
 
 			term.setCursorPos(1, i + offy)
+			term.setBackgroundColor(colors[theme.editorBackground])
 			if scrolly + i == y then
-				term.setBackgroundColor(colors[theme.editorLineHightlight])
+				if scrolly + i == liveErr.line then
+					term.setBackgroundColor(colors[theme.editorErrorHighlight])
+				else term.setBackgroundColor(colors[theme.editorLineHightlight]) end
+				term.clearLine()
+			elseif scrolly + i == liveErr.line then
+				term.setBackgroundColor(colors[theme.editorError])
 				term.clearLine()
 			end
 
 			term.setCursorPos(1 - scrollx + offx, i + offy)
-			if scrolly + i == y then term.setBackgroundColor(colors[theme.editorLineHightlight])
+			if scrolly + i == y then
+				if scrolly + i == liveErr.line then
+					term.setBackgroundColor(colors[theme.editorErrorHighlight])
+				else term.setBackgroundColor(colors[theme.editorLineHightlight]) end
+			elseif scrolly + i == liveErr.line then term.setBackgroundColor(colors[theme.editorError])
 			else term.setBackgroundColor(colors[theme.editorBackground]) end
-			writeHighlighted(a)
+			if scrolly + i == liveErr.line then term.write(a)
+			else writeHighlighted(a) end
 
 			term.setCursorPos(1, i + offy)
-			if scrolly + i == y then term.setBackgroundColor(colors[theme.editorLineNumbersHighlight])
+			if scrolly + i == y then
+				if scrolly + i == liveErr.line then
+					term.setBackgroundColor(colors[theme.editorError])
+				else term.setBackgroundColor(colors[theme.editorLineNumbersHighlight]) end
+			elseif scrolly + i == liveErr.line then
+				term.setBackgroundColor(colors[theme.editorErrorHighlight])
 			else term.setBackgroundColor(colors[theme.editorLineNumbers]) end
 			term.write(ln)
 		end
@@ -924,22 +925,40 @@ local function drawLine(...)
 	for _, ly in pairs(ls) do
 		local a = lines[ly]
 		if a then
-			local ln = string.rep(" ", offx - 1 - tostring(ly):len()) ..
-				tostring(ly) .. ":"
+			local ln = string.rep(" ", offx - 1 - tostring(ly):len()) .. tostring(ly) 
 			local l = a:sub(scrollx + 1, edw + scrollx + 1)
+			ln = ln .. ":"
 
-			term.setCursorPos(1, ly - scrolly + offy)
-			if ly == y then term.setBackgroundColor(colors[theme.editorLineHightlight])
-			else term.setBackgroundColor(colors[theme.editorBackground]) end
+			if liveErr.line == ly then ln = string.rep(" ", offx - 2) .. "!:" end
+
+			term.setCursorPos(1, (ly - scrolly) + offy)
+			term.setBackgroundColor(colors[theme.editorBackground])
+			if ly == y then
+				if ly == liveErr.line then
+					term.setBackgroundColor(colors[theme.editorErrorHighlight])
+				else term.setBackgroundColor(colors[theme.editorLineHightlight]) end
+			elseif ly == liveErr.line then
+				term.setBackgroundColor(colors[theme.editorError])
+			end
 			term.clearLine()
 
-			term.setCursorPos(1 - scrollx + offx, ly - scrolly + offy)
-			if ly == y then term.setBackgroundColor(colors[theme.editorLineHightlight])
+			term.setCursorPos(1 - scrollx + offx, (ly - scrolly) + offy)
+			if ly == y then
+				if ly == liveErr.line then
+					term.setBackgroundColor(colors[theme.editorErrorHighlight])
+				else term.setBackgroundColor(colors[theme.editorLineHightlight]) end
+			elseif ly == liveErr.line then term.setBackgroundColor(colors[theme.editorError])
 			else term.setBackgroundColor(colors[theme.editorBackground]) end
-			writeHighlighted(a)
+			if ly == liveErr.line then term.write(a)
+			else writeHighlighted(a) end
 
-			term.setCursorPos(1, ly - scrolly + offy)
-			if ly == y then term.setBackgroundColor(colors[theme.editorLineNumbersHighlight])
+			term.setCursorPos(1, (ly - scrolly) + offy)
+			if ly == y then
+				if ly == liveErr.line then
+					term.setBackgroundColor(colors[theme.editorError])
+				else term.setBackgroundColor(colors[theme.editorLineNumbersHighlight]) end
+			elseif ly == liveErr.line then
+				term.setBackgroundColor(colors[theme.editorErrorHighlight])
 			else term.setBackgroundColor(colors[theme.editorLineNumbers]) end
 			term.write(ln)
 		end
@@ -966,9 +985,7 @@ local function cursorLoc(x, y, force)
 		scrolly = y - edh
 		sy = edh
 		redraw = true
-	end if redraw or force then
-		draw()
-	end
+	end if redraw or force then draw() end
 	term.setCursorPos(sx + offx, sy + offy)
 end
 
@@ -1004,6 +1021,7 @@ local function edit(path)
 	-- Clocks
 	local autosaveClock = os.clock()
 	local scrollClock = os.clock() -- To prevent redraw flicker
+	local liveErrorClock = os.clock()
 	local hasScrolled = false
 
 	-- Draw
@@ -1047,7 +1065,6 @@ local function edit(path)
 				table.insert(lines, y + 1, string.rep(" ", spaces) .. oldLine:sub(x, -1))
 
 				x, y = spaces + 1, y + 1
-				drawLine(y, y - 1)
 				cursorLoc(x, y, true)
 			elseif key == 14 then
 				-- Backspace
@@ -1061,7 +1078,6 @@ local function edit(path)
 					lines[y - 1] = lines[y - 1] .. lines[y]
 					table.remove(lines, y)
 					x, y = prevLen, y - 1
-					drawLine(y + 1, y)
 					cursorLoc(x, y, true)
 				end
 			elseif key == 199 then
@@ -1183,6 +1199,19 @@ local function edit(path)
 			saveFile(path, lines)
 			autosaveClock = os.clock()
 		end
+
+		if os.clock() - liveErrorClock > 1 then
+			local prevLiveErr = liveErr
+			liveErr = parseError(nil)
+			if liveErrors then
+				local code = ""
+				for _, v in pairs(lines) do code = code .. v .. "\n" end
+				liveErr = getCompilerErrors(code)
+				liveErr.line = math.min(liveErr.line - 2, #lines)
+			end
+			if liveErr ~= prevLiveErr then draw() end
+			liveErrorClock = os.clock()
+		end
 	end
 
 	return "menu"
@@ -1214,14 +1243,9 @@ local function newFile()
 	elseif fs.exists(name) then
 		centerPrint("File Already Exists!")
 		local opt = prompt({{"Open", w/2 - 9, 14}, {"Cancel", w/2 + 2, 14}}, "horizontal")
-		if opt == "Open" then
-			return "edit", name
-		elseif opt == "Cancel" then
-			return "menu"
-		end
-	else
-		return "edit", name
-	end
+		if opt == "Open" then return "edit", name
+		elseif opt == "Cancel" then return "menu" end
+	else return "edit", name end
 end
 
 local function openFile()
@@ -1247,14 +1271,9 @@ local function openFile()
 	elseif not fs.exists(name) then
 		centerPrint("File Doesn't Exist!")
 		local opt = prompt({{"Create", w/2 - 11, 14}, {"Cancel", w/2 + 2, 14}}, "horizontal")
-		if opt == "Create" then
-			return "edit", name
-		elseif opt == "Cancel" then
-			return "menu"
-		end
-	else
-		return "edit", name
-	end
+		if opt == "Create" then return "edit", name
+		elseif opt == "Cancel" then return "menu" end
+	else return "edit", name end
 end
 
 
@@ -1288,7 +1307,6 @@ local function update()
 	end
 
 	draw("Updating...")
-	os.pullEvent("key")
 	local tID = os.startTimer(10)
 	http.request(updateURL)
 	while true do
@@ -1298,14 +1316,12 @@ local function update()
 			draw("Cancelled")
 			sleep(1.6)
 			break
-		elseif e == "http_success" then
+		elseif e == "http_success" and but == updateURL then
 			draw("Update Found")
 			sleep(1.6)
---[[
 			local f = io.open(ideLocation, "w")
 			f:write(x.readAll())
 			f:close()
-]]--
 
 			draw("Click to Exit")
 			while true do
@@ -1331,9 +1347,7 @@ local function changeTheme()
 		for _, v in pairs(availableThemes) do table.insert(disThemes, v[1]) end
 		local t = scrollingPrompt(disThemes)
 		local url = nil
-		for _, v in pairs(availableThemes) do
-			if v[1] == t then url = v[2] end
-		end
+		for _, v in pairs(availableThemes) do if v[1] == t then url = v[2] end end
 
 		if not url then return "settings" end
 		if t == "Dawn (Default)" then
@@ -1352,8 +1366,6 @@ local function changeTheme()
 		term.setCursorPos(3, 3)
 		term.clearLine()
 		term.write("LuaIDE - Downloading...")
-		print(url)
-		os.pullEvent('key')
 
 		fs.delete("/.LuaIDE_temp_theme_file")
 		download(url, "/.LuaIDE_temp_theme_file")
@@ -1363,6 +1375,7 @@ local function changeTheme()
 		term.clearLine()
 		if a then
 			term.write("LuaIDE - Loaded Theme!")
+			fs.delete(themeLocation)
 			fs.move("/.LuaIDE_temp_theme_file", themeLocation)
 			theme = a
 			sleep(1.6)
@@ -1384,17 +1397,12 @@ local function settings()
 	title("LuaIDE - Settings")
 
 	local opt = prompt({{"Change Theme", w/2 - 17, 8}, {"Check for Updates", w/2 - 22, 13},
-		{"Disable Live Errors", w/2 + 2, 8}, {"Return to Menu", w/2 + 2, 13,
-		bg = colors[theme.err], highlight = colors[theme.errHighlight]}})
-	if opt == "Change Theme" then
-		return changeTheme()
-	elseif opt == "Check for Updates" then
-		return update()
-	elseif opt == "Disable Live Errors" then
-		return "menu"
-	elseif opt == "Return to Menu" then
-		return "menu"
-	end
+		{(liveErrors and "Disable" or "Enable") .. " Live Errors", w/2 + 2, 8}, {"Return to Menu", 
+		w/2 + 2, 13, bg = colors[theme.err], highlight = colors[theme.errHighlight]}}, "vertical", true)
+	if opt == "Change Theme" then return changeTheme()
+	elseif opt == "Check for Updates" then return update()
+	elseif opt == "Disable Live Errors" then return "menu"
+	elseif opt == "Return to Menu" then return "menu" end
 end
 
 
@@ -1405,16 +1413,11 @@ local function menu()
 
 	local opt = prompt({{"New File", w/2 - 13, 8}, {"Open File", w/2 - 14, 13},
 		{"Settings", w/2 + 2, 8}, {"Exit IDE", w/2 + 2, 13, bg = colors[theme.err],
-		highlight = colors[theme.errHighlight]}})
-	if opt == "New File" then
-		return "new"
-	elseif opt == "Open File" then
-		return "open"
-	elseif opt == "Settings" then
-		return "settings"
-	elseif opt == "Exit IDE" then
-		return "exit"
-	end
+		highlight = colors[theme.errHighlight]}}, "vertical", true)
+	if opt == "New File" then return "new"
+	elseif opt == "Open File" then return "open"
+	elseif opt == "Settings" then return "settings"
+	elseif opt == "Exit IDE" then return "exit" end
 end
 
 
@@ -1436,20 +1439,13 @@ local function main(arguments)
 		if opt == "menu" then opt = menu() end
 
 		-- Other
-		if opt == "new" then
-			opt, data = newFile()
-		elseif opt == "open" then
-			opt, data = openFile()
-		elseif opt == "settings" then
-			opt = settings()
-		end if opt == "exit" then
-			break
-		end
+		if opt == "new" then opt, data = newFile()
+		elseif opt == "open" then opt, data = openFile()
+		elseif opt == "settings" then opt = settings()
+		end if opt == "exit" then break end
 
 		-- Edit
-		if opt == "edit" and data then
-			opt = edit(data)
-		end
+		if opt == "edit" and data then opt = edit(data) end
 	end
 end
 
@@ -1494,9 +1490,9 @@ if err and not err:find("Terminated") then
 		term.write(string.rep(" ", 36))
 	end
 	term.setCursorPos(6, cy + 2)
-	term.write("Please report this error to 1lann")
+	term.write("Please report this error")
 	term.setCursorPos(6, cy + 3)
-	term.write("or GravityScore! ")
+	term.write("GravityScore! ")
 	
 	term.setBackgroundColor(colors[theme.background])
 	if isAdvanced() then centerPrint("Click to Exit...", h - 1)
@@ -1515,6 +1511,6 @@ end
 term.setBackgroundColor(colors.black)
 term.setTextColor(colors.white)
 term.clear()
-centerPrint("Thank You for Using Lua IDE " .. version, 1)
-centerPrint("Made by GravityScore and 1lann", 2)
-term.setCursorPos(1, 3)
+term.setCursorPos(1, 1)
+centerPrint("Thank You for Using Lua IDE " .. version)
+centerPrint("Made by GravityScore")
