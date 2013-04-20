@@ -472,7 +472,7 @@ local function viewErrorHelp(e)
 end
 
 local function getCompilerErrors(code)
-	code = "local function ee65da6af1cb6f63fee9a081246f2fd92b36ef2()\n\n" .. code .. "\n\nend"
+	code = "local function ee65da6af1cb6f63fee9a081246f2fd92b36ef2(...)\n\n" .. code .. "\n\nend"
 	local fn, err = loadstring(code)
 	if not err then
 		local _, e = pcall(fn)

@@ -8,7 +8,7 @@ errHighlight=black
 editorBackground=black
 editorLineHightlight=black
 editorLineNumbers=black
-editorLineNumbersHighlight=white
+editorLineNumbersHighlight=black
 editorError=black
 editorErrorHighlight=black
 
