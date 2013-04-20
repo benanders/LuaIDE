@@ -292,10 +292,10 @@ function monitorKeyboardShortcuts()
 	local shiftPressed = false
 	while true do
 		local event, char = os.pullEvent()
-		if event == "key" and char == 42 then
+		if event == "key" and (char == 42 or char == 52) then
 			shiftPressed = true
 			tb = os.startTimer(keyboardShortcutTimeout)
-		elseif event == "key" and char == 29 then
+		elseif event == "key" and (char == 29 or char == 157 or char == 219 or char == 220) then
 			allowEditorEvent = false
 			allowChar = true
 			ta = os.startTimer(keyboardShortcutTimeout)
@@ -309,6 +309,8 @@ function monitorKeyboardShortcuts()
 					allowEditorEvent = true
 				end
 			end
+			if shiftPressed then os.queueEvent("shortcut", "ctrl shift", char)
+			else os.queueEvent("shortcut", "ctrl", char) end
 		elseif event == "timer" and char == ta then
 			allowEditorEvent = true
 			allowChar = false
@@ -389,12 +391,14 @@ local helpTips = {
 	"You missed an 'end'.",
 	"You missed a 'then'.",
 	"You declared a variable incorrectly.",
+	"One of your variables is mysteriously nil.",
+
 }
 
 local errors = {
 	["Attempt to call nil."] = {1, 2},
 	["Attempt to index nil."] = {3, 2},
-	[".+ expected, got .+"] = {4, 2},
+	[".+ expected, got .+"] = {4, 2, 9},
 	["'end' expected"] = {6, 2},
 	["'then' expected"] = {7, 2},
 	["'=' expected"] = {8, 2}
@@ -622,9 +626,9 @@ local keywords = {
 	["false"] = "constant",
 	["nil"] = "constant",
 
-	["print"] = "function",
-	["write"] = "function",
-	["sleep"] = "function",
+--	["print"] = "function",
+--	["write"] = "function",
+--	["sleep"] = "function",
 	["loadstring"] = "function",
 	["loadfile"] = "function",
 	["dofile"] = "function",
@@ -649,9 +653,11 @@ local menu = {
 		"Delete Line",
 		"Clear Line"
 	}, [3] = {"Functions",
-		"Go To Line   ^+G",
---		"Re-Indent    ^+I",
-		"Toggle Colouring"
+		"Go To Line    ^+G",
+--		"Re-Indent     ^+I",
+		"Toggle Colouring",
+		"Start of Line ^+<",
+		"End of Line   ^+>"
 	}, [4] = {"Run",
 		"Run Program       ^+R",
 		"Run w/ Args ^+Shift+R"
@@ -675,9 +681,11 @@ local shortcuts = {
 	["0"] = "Clear Line",
 
 	-- Functions
-	["ctrl g"] = "Go To Line   ^+G",
---	["ctrl i"] = "Re-Indent    ^+I",
+	["ctrl g"] = "Go To Line    ^+G",
+--	["ctrl i"] = "Re-Indent     ^+I",
 	["0"] = "Toggle Colouring",
+	["ctrl 203"] = "Start of Line ^+<",
+	["ctrl 205"] = "End of Line   ^+>",
 
 	-- Run
 	["ctrl r"] = "Run Program       ^+R",
@@ -703,10 +711,12 @@ local menuFunctions = {
 	["Clear Line"] = function(path, lines, y) lines[y] = "" return nil, lines, "cursor" end,
 
 	-- Functions
-	["Go To Line   ^+G"] = function() return nil, "go to", goto() end,
---	["Re-Indent    ^+I"] = function(path, lines)
+	["Go To Line    ^+G"] = function() return nil, "go to", goto() end,
+--	["Re-Indent     ^+I"] = function(path, lines)
 --		local a = reindent(lines) saveFile(path, lines) return nil end,
 	["Toggle Colouring"] = function() highlightSyntax = not highlightSyntax end,
+	["Start of Line ^+<"] = function() os.queueEvent("key", 199) end,
+	["End of Line   ^+>"] = function() os.queueEvent("key", 207) end,
 
 	-- Run
 	["Run Program       ^+R"] = function(path, lines)
