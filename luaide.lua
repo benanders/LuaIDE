@@ -98,27 +98,16 @@ local availableThemes = {
 }
 
 local function loadTheme(path)
-	if fs.exists(path) and not fs.isDir(path) then
-		local a = {}
-		local f = io.open(path, "r")
-		local l = f:read("*l")
-		while l ~= nil do
-			l = l:gsub("^%s*(.-)%s*$", "%1")
-			if l ~= "" and l ~= nil and l ~= "\n" and l:sub(1, 2) ~= "--" then
-				local b = l:find("=")
-				if a and b then
-					local c = l:sub(1, b - 1)
-					local d = l:sub(b + 1, -1)
-					if c == "" or d == "" then return nil
-					else a[c] = d end
-				else return nil end
-			end
-			l = f:read("*l")
-		end
-		f:close()
-
-		return a
+	local f = io.open(path)
+	local l = f:read("*l")
+	local config = {}
+	while l ~= nil do
+		local k, v = string.match(l, "^(%a+)=(%a+)")
+		if k and v then config[k] = v end
+		l = f:read("*l")
 	end
+	f:close()
+	return config
 end
 
 -- Load theme
@@ -212,7 +201,7 @@ local function prompt(list, dir, isGrid)
 end
 
 local function scrollingPrompt(list)
-	local function draw(items, sel)
+	local function draw(items, sel, loc)
 		for i, v in ipairs(items) do
 			local bg = colors[theme.prompt]
 			local bghigh = colors[theme.promptHighlight]
@@ -252,7 +241,7 @@ local function scrollingPrompt(list)
 	local loc = 1
 	local len = 3
 	local disList = updateDisplayList(list, loc, len)
-	draw(disList, sel)
+	draw(disList, sel, loc)
 
 	-- Loop
 	while true do
@@ -265,20 +254,20 @@ local function scrollingPrompt(list)
 		elseif e == "key" and key == 200 then
 			if sel > 1 then
 				sel = sel - 1
-				draw(disList, sel)
+				draw(disList, sel, loc)
 			elseif loc > 1 then
 				loc = loc - 1
 				disList = updateDisplayList(list, loc, len)
-				draw(disList, sel)
+				draw(disList, sel, loc)
 			end
 		elseif e == "key" and key == 208 then
 			if sel < len then
 				sel = sel + 1
-				draw(disList, sel)
+				draw(disList, sel, loc)
 			elseif loc + len - 1 < #list then
 				loc = loc + 1
 				disList = updateDisplayList(list, loc, len)
-				draw(disList, sel)
+				draw(disList, sel, loc)
 			end
 		elseif e == "mouse_scroll" then
 			os.queueEvent("key", key == -1 and 200 or 208)
@@ -520,7 +509,7 @@ local function run(path, lines, useArgs)
 	centerPrint("Press any key to return to LuaIDE...")
 	while true do
 		local e = os.pullEvent()
-		if e == "mouse_click" or e == "key" then break end
+		if e == "mouse_click" or (not isAdvanced() and e == "key") then break end
 	end
 
 	-- To prevent key from showing up in editor
@@ -861,6 +850,8 @@ local offx, offy = 0, 1
 local scrollx, scrolly = 0, 0
 local lines = {}
 local liveErr = parseError(nil)
+local displayCode = true
+local lastEventClock = os.clock()
 
 local function attemptToHighlight(line, regex, col)
 	local match = string.match(line, regex)
@@ -915,7 +906,7 @@ local function draw()
 			term.setCursorPos(1, i + offy)
 			term.setBackgroundColor(colors[theme.editorBackground])
 			if scrolly + i == y then
-				if scrolly + i == liveErr.line then
+				if scrolly + i == liveErr.line and os.clock() - lastEventClock > 3 then
 					term.setBackgroundColor(colors[theme.editorErrorHighlight])
 				else term.setBackgroundColor(colors[theme.editorLineHightlight]) end
 				term.clearLine()
@@ -926,17 +917,19 @@ local function draw()
 
 			term.setCursorPos(1 - scrollx + offx, i + offy)
 			if scrolly + i == y then
-				if scrolly + i == liveErr.line then
+				if scrolly + i == liveErr.line and os.clock() - lastEventClock > 3 then
 					term.setBackgroundColor(colors[theme.editorErrorHighlight])
 				else term.setBackgroundColor(colors[theme.editorLineHightlight]) end
 			elseif scrolly + i == liveErr.line then term.setBackgroundColor(colors[theme.editorError])
 			else term.setBackgroundColor(colors[theme.editorBackground]) end
-			if scrolly + i == liveErr.line then term.write(a)
+			if scrolly + i == liveErr.line then
+				if displayCode then term.write(a)
+				else term.write(liveErr.display) end
 			else writeHighlighted(a) end
 
 			term.setCursorPos(1, i + offy)
 			if scrolly + i == y then
-				if scrolly + i == liveErr.line then
+				if scrolly + i == liveErr.line and os.clock() - lastEventClock > 3 then
 					term.setBackgroundColor(colors[theme.editorError])
 				else term.setBackgroundColor(colors[theme.editorLineNumbersHighlight]) end
 			elseif scrolly + i == liveErr.line then
@@ -963,7 +956,7 @@ local function drawLine(...)
 			term.setCursorPos(1, (ly - scrolly) + offy)
 			term.setBackgroundColor(colors[theme.editorBackground])
 			if ly == y then
-				if ly == liveErr.line then
+				if ly == liveErr.line and os.clock() - lastEventClock > 3 then
 					term.setBackgroundColor(colors[theme.editorErrorHighlight])
 				else term.setBackgroundColor(colors[theme.editorLineHightlight]) end
 			elseif ly == liveErr.line then
@@ -973,17 +966,19 @@ local function drawLine(...)
 
 			term.setCursorPos(1 - scrollx + offx, (ly - scrolly) + offy)
 			if ly == y then
-				if ly == liveErr.line then
+				if ly == liveErr.line and os.clock() - lastEventClock > 3 then
 					term.setBackgroundColor(colors[theme.editorErrorHighlight])
 				else term.setBackgroundColor(colors[theme.editorLineHightlight]) end
 			elseif ly == liveErr.line then term.setBackgroundColor(colors[theme.editorError])
 			else term.setBackgroundColor(colors[theme.editorBackground]) end
-			if ly == liveErr.line then term.write(a)
+			if ly == liveErr.line then
+				if displayCode then term.write(a)
+				else term.write(liveErr.display) end
 			else writeHighlighted(a) end
 
 			term.setCursorPos(1, (ly - scrolly) + offy)
 			if ly == y then
-				if ly == liveErr.line then
+				if ly == liveErr.line and os.clock() - lastEventClock > 3 then
 					term.setBackgroundColor(colors[theme.editorError])
 				else term.setBackgroundColor(colors[theme.editorLineNumbersHighlight]) end
 			elseif ly == liveErr.line then
@@ -1059,6 +1054,7 @@ local function edit(path)
 	term.setCursorBlink(true)
 	
 	-- Main loop
+	local tid = os.startTimer(3)
 	while true do
 		local e, key, cx, cy = os.pullEvent()
 		if e == "key" and allowEditorEvent then
@@ -1144,7 +1140,8 @@ local function edit(path)
 				drawLine(y)
 				cursorLoc(x, y, force)
 			end
-		elseif e == "char" and allowEditorEvent then
+		elseif e == "char" and allowEditorEvent and (displayCode and true or 
+				y + scrolly - 1 == liveErr.line) then
 			lines[y] = lines[y]:sub(1, x - 1) .. key .. lines[y]:sub(x, -1)
 			x = x + key:len()
 			local force = false
@@ -1153,11 +1150,16 @@ local function edit(path)
 			cursorLoc(x, y, force)
 		elseif e == "mouse_click" and key == 1 then
 			if cy > 1 then
-				local oldy = y
-				y = math.min(math.max(scrolly + cy - offy, 1), #lines)
-				x = math.min(math.max(scrollx + cx - offx, 1), lines[y]:len() + 1)
-				if oldy ~= y then drawLine(oldy, y) end
-				cursorLoc(x, y)
+				if cx <= offx and cy - offy == liveErr.line - scrolly then
+					displayCode = not displayCode
+					drawLine(liveErr.line)
+				else
+					local oldy = y
+					y = math.min(math.max(scrolly + cy - offy, 1), #lines)
+					x = math.min(math.max(scrollx + cx - offx, 1), lines[y]:len() + 1)
+					if oldy ~= y then drawLine(oldy, y) end
+					cursorLoc(x, y)
+				end
 			else
 				local a = triggerMenu(cx, cy)
 				if a then
@@ -1214,6 +1216,9 @@ local function edit(path)
 				scrollClock = os.clock()
 				hasScrolled = true
 			end
+		elseif e == "timer" and key == tid then
+			drawLine(y)
+			tid = os.startTimer(3)
 		end
 
 		-- Draw
@@ -1229,6 +1234,7 @@ local function edit(path)
 			autosaveClock = os.clock()
 		end
 
+		-- Errors
 		if os.clock() - liveErrorClock > 1 then
 			local prevLiveErr = liveErr
 			liveErr = parseError(nil)
@@ -1346,18 +1352,29 @@ local function update()
 			sleep(1.6)
 			break
 		elseif e == "http_success" and but == updateURL then
-			draw("Update Found")
-			sleep(1.6)
-			local f = io.open(ideLocation, "w")
-			f:write(x.readAll())
-			f:close()
+			local new = x.readAll()
+			local curf = io.open(ideLocation, "r")
+			local cur = curf:read("*a")
+			curf:close()
 
-			draw("Click to Exit")
-			while true do
-				local e = os.pullEvent()
-				if e == "mouse_click" or e == "key" then break end
+			if cur ~= new then
+				draw("Update Found")
+				sleep(1.6)
+				local f = io.open(ideLocation, "w")
+				f:write(new)
+				f:close()
+
+				draw("Click to Exit")
+				while true do
+					local e = os.pullEvent()
+					if e == "mouse_click" or (not isAdvanced() and e == "key") then break end
+				end
+				return "exit"
+			else
+				draw("No Updates Found!")
+				sleep(1.6)
+				break
 			end
-			return "exit"
 		elseif e == "http_failure" or (e == "timer" and but == tID) then
 			draw("Update Failed!")
 			sleep(1.6)
@@ -1519,7 +1536,7 @@ if err and not err:find("Terminated") then
 		term.write(string.rep(" ", 36))
 	end
 	term.setCursorPos(6, cy + 2)
-	term.write("Please report this error")
+	term.write("Please report this error to")
 	term.setCursorPos(6, cy + 3)
 	term.write("GravityScore! ")
 	
@@ -1528,7 +1545,7 @@ if err and not err:find("Terminated") then
 	else centerPrint("Press Any Key to Exit...", h - 1) end
 	while true do
 		local e = os.pullEvent()
-		if e == "key" or e == "mouse_click" then break end
+		if e == "mouse_click" or (not isAdvanced() and e == "key") then break end
 	end
 
 	-- Prevent key from being shown
