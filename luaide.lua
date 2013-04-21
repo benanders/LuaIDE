@@ -41,6 +41,153 @@ local themeLocation = "/.LuaIDE-Theme"
 local function isAdvanced() return term.isColor and term.isColor() end
 
 
+--  -------- Utilities
+
+local function modRead(properties)
+	local w, h = term.getSize()
+	local defaults = {replaceChar = nil, history = nil, visibleLength = nil, textLength = nil, 
+		liveUpdates = nil, exitOnKey = nil}
+	if not properties then properties = {} end
+	for k, v in pairs(defaults) do if not properties[k] then properties[k] = v end end
+	if properties.replaceChar then properties.replaceChar = properties.replaceChar:sub(1, 1) end
+	if not properties.visibleLength then properties.visibleLength = w end
+
+	local sx, sy = term.getCursorPos()
+	local line = ""
+	local pos = 0
+	local historyPos = nil
+
+	local function redraw(repl)
+		local scroll = 0
+		if properties.visibleLength and sx + pos > properties.visibleLength + 1 then 
+			scroll = (sx + pos) - (properties.visibleLength + 1)
+		end
+
+		term.setCursorPos(sx, sy)
+		local a = repl or properties.replaceChar
+		if a then term.write(string.rep(a, line:len() - scroll))
+		else term.write(line:sub(scroll + 1, -1)) end
+		term.setCursorPos(sx + pos - scroll, sy)
+	end
+
+	local function sendLiveUpdates(event, ...)
+		if type(properties.liveUpdates) == "function" then
+			local ox, oy = term.getCursorPos()
+			properties.liveUpdates(line, event, ...)
+			if a == true and data == nil then
+				term.setCursorBlink(false)
+				return line
+			elseif a == true and data ~= nil then
+				term.setCursorBlink(false)
+				return data
+			end
+			term.setCursorPos(ox, oy)
+		end
+	end
+
+	term.setCursorBlink(true)
+	while true do
+		local e, but, x, y, p4, p5 = os.pullEvent()
+
+		if e == "char" then
+			local s = false
+			if properties.textLength and line:len() < properties.textLength then s = true
+			elseif not properties.textLength then s = true end
+
+			local canType = true
+			if not properties.grantPrint and properties.refusePrint then
+				local canTypeKeys = {}
+				if type(properties.refusePrint) == "table" then
+					for _, v in pairs(properties.refusePrint) do
+						table.insert(canTypeKeys, tostring(v):sub(1, 1))
+					end
+				elseif type(properties.refusePrint) == "string" then
+					for char in properties.refusePrint:gmatch(".") do
+						table.insert(canTypeKeys, char)
+					end
+				end
+				for _, v in pairs(canTypeKeys) do if but == v then canType = false end end
+			elseif properties.grantPrint then
+				canType = false
+				local canTypeKeys = {}
+				if type(properties.grantPrint) == "table" then
+					for _, v in pairs(properties.grantPrint) do
+						table.insert(canTypeKeys, tostring(v):sub(1, 1))
+					end
+				elseif type(properties.grantPrint) == "string" then
+					for char in properties.grantPrint:gmatch(".") do
+						table.insert(canTypeKeys, char)
+					end
+				end
+				for _, v in pairs(canTypeKeys) do if but == v then canType = true end end
+			end
+
+			if s and canType then
+				line = line:sub(1, pos) .. but .. line:sub(pos + 1, -1)
+				pos = pos + 1
+				redraw()
+			end
+		elseif e == "key" then
+			if but == keys.enter then break
+			elseif but == keys.left then if pos > 0 then pos = pos - 1 redraw() end
+			elseif but == keys.right then if pos < line:len() then pos = pos + 1 redraw() end
+			elseif (but == keys.up or but == keys.down) and properties.history then
+				redraw(" ")
+				if but == keys.up then
+					if historyPos == nil and #properties.history > 0 then 
+						historyPos = #properties.history
+					elseif historyPos > 1 then 
+						historyPos = historyPos - 1
+					end
+				elseif but == keys.down then
+					if historyPos == #properties.history then historyPos = nil
+					elseif historyPos ~= nil then historyPos = historyPos + 1 end
+				end
+
+				if properties.history and historyPos then
+					line = properties.history[historyPos]
+					pos = line:len()
+				else
+					line = ""
+					pos = 0
+				end
+
+				redraw()
+				sendLiveUpdates("history")
+			elseif but == keys.backspace and pos > 0 then
+				redraw(" ")
+				line = line:sub(1, pos - 1) .. line:sub(pos + 1, -1)
+				pos = pos - 1
+				redraw()
+				sendLiveUpdates("delete")
+			elseif but == keys.home then
+				pos = 0
+				redraw()
+			elseif but == keys.delete and pos < line:len() then
+				redraw(" ")
+				line = line:sub(1, pos) .. line:sub(pos + 2, -1)
+				redraw()
+				sendLiveUpdates("delete")
+			elseif but == keys["end"] then
+				pos = line:len()
+				redraw()
+			elseif properties.exitOnKey then 
+				if but == properties.exitOnKey or (properties.exitOnKey == "control" and 
+						(but == 29 or but == 157)) then 
+					term.setCursorBlink(false)
+					return nil
+				end
+			end
+		end
+		sendLiveUpdates(e, but, x, y, p4, p5)
+	end
+
+	term.setCursorBlink(false)
+	if line ~= nil then line = line:gsub("^%s*(.-)%s*$", "%1") end
+	return line
+end
+
+
 --  -------- Themes
 
 local defaultTheme = {
@@ -116,10 +263,14 @@ theme = defaultTheme
 
 --  -------- Drawing
 
-local function centerPrint(text, ny)
-	local x, y = term.getCursorPos()
-	term.setCursorPos(math.ceil(w/2 - text:len()/2) + 1, ny or y)
-	print(text)
+local local function centerPrint(text, ny)
+	if type(text) == "table" then for _, v in pairs(text) do centerPrint(v) end
+	else
+		local x, y = term.getCursorPos()
+		local w, h = term.getSize()
+		term.setCursorPos(w/2 - text:len()/2 + (#text % 2 == 0 and 1 or 0), ny or y)
+		print(text)
+	end
 end
 
 local function title(t)
@@ -143,7 +294,7 @@ local function centerRead(wid, begt)
 	end
 	term.setCursorPos(w/2 - wid/2 + 1, 9)
 	term.write("> " .. begt)
-	return read():gsub("^%s*(.-)%s*$", "%1")
+	return modRead({visibleLength = w/2 + wid/2}):gsub("^%s*(.-)%s*$", "%1")
 end
 
 
@@ -582,7 +733,7 @@ local function goto()
 	term.setCursorPos(2, 1)
 	term.clearLine()
 	term.write("Line: ")
-	local line = read():gsub("^%s*(.-)%s*$", "%1")
+	local line = modRead({visibleLength = w - 2}):gsub("^%s*(.-)%s*$", "%1")
 
 	local num = tonumber(line)
 	if num and num > 0 then return num
@@ -1493,13 +1644,6 @@ local function main(arguments)
 		-- Edit
 		if opt == "edit" and data then opt = edit(data) end
 	end
-end
-
--- Advanced Comptuer Only
-if not isAdvanced() then
-	print("Advanced Comptuer Required!")
-	print("Normal Comptuer Support Coming Soon!")
-	error()
 end
 
 -- Load Theme
