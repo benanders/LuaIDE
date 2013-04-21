@@ -195,8 +195,8 @@ local defaultTheme = {
 	backgroundHighlight = "lightGray",
 	prompt = "cyan",
 	promptHighlight = "lightBlue",
-	err = "pink",
-	errHighlight = "red",
+	err = "red",
+	errHighlight = "pink",
 
 	editorBackground = "gray",
 	editorLineHightlight = "lightBlue",

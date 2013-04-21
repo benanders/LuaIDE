@@ -2,7 +2,7 @@ background=gray
 backgroundHighlight=lightGray
 prompt=red
 promptHighlight=orange
-err=red
+err=yellow
 errHighlight=pink
 
 editorBackground=gray
