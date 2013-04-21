@@ -517,7 +517,7 @@ local function run(path, lines, useArgs)
 	os.pullEvent()
 
 	if err then
-		err = fs.getName(path) .. err:sub(err:find("]", 1, true) + 1, -1)
+		if err:find("]") then err = fs.getName(path) .. err:sub(err:find("]", 1, true) + 1, -1) end
 		while true do
 			title("LuaIDE - Error!")
 
