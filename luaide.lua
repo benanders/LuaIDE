@@ -263,7 +263,7 @@ theme = defaultTheme
 
 --  -------- Drawing
 
-local local function centerPrint(text, ny)
+local function centerPrint(text, ny)
 	if type(text) == "table" then for _, v in pairs(text) do centerPrint(v) end
 	else
 		local x, y = term.getCursorPos()
