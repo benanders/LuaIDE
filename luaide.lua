@@ -1231,7 +1231,8 @@ local function edit(path)
 				local force = false
 				if y - scrolly + offy < offy + 1 then force = true end
 				cursorLoc(x, y, force)
-			elseif key == 28 or key == 156 then
+			elseif (key == 28 or key == 156) and (displayCode and true or y + scrolly - 1 ==
+					liveErr.line) then
 				-- Enter
 				local _, spaces = lines[y]:find("^[ ]+")
 				if not spaces then spaces = 0 end
@@ -1242,7 +1243,7 @@ local function edit(path)
 
 				x, y = spaces + 1, y + 1
 				cursorLoc(x, y, true)
-			elseif key == 14 then
+			elseif key == 14 and (displayCode and true or y + scrolly - 1 == liveErr.line) then
 				-- Backspace
 				if x > 1 then
 					lines[y] = lines[y]:sub(1, x - 2) .. lines[y]:sub(x, -1)
@@ -1268,7 +1269,7 @@ local function edit(path)
 				local force = false
 				if y - scrolly + offy < offy + 1 then force = true end
 				cursorLoc(x, y, force)
-			elseif key == 211 then
+			elseif key == 211 and (displayCode and true or y + scrolly - 1 == liveErr.line) then
 				-- Forward Delete
 				if x < lines[y]:len() + 1 then
 					lines[y] = lines[y]:sub(1, x - 1) .. lines[y]:sub(x + 1)
@@ -1282,7 +1283,7 @@ local function edit(path)
 					draw()
 					cursorLoc(x, y)
 				end
-			elseif key == 15 then
+			elseif key == 15 and (displayCode and true or y + scrolly - 1 == liveErr.line) then
 				-- Tab
 				lines[y] = string.rep(" ", tabWidth) .. lines[y]
 				x = x + 2
