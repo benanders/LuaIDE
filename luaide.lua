@@ -683,7 +683,7 @@ local function run(path, lines, useArgs)
 	centerPrint("Press any key to return to LuaIDE...")
 	while true do
 		local e = os.pullEvent()
-		if e == "mouse_click" or (not isAdvanced() and e == "key") then break end
+		if e == "mouse_click" or e == "key" then break end
 	end
 
 	-- To prevent key from showing up in editor
@@ -1028,9 +1028,16 @@ local standardsCompletions = {
 	"while%s+.+%s+do%s*$",
 	"repeat%s*$",
 	"function%s+[a-zA-Z_0-9]\(.*\)%s*$",
-	".*%s+{",
 	"else%s*$",
 	"elseif%s+.+%s+then%s*$"
+}
+
+local liveCompletions = {
+	["("] = ")",
+	["{"] = "}",
+	["["] = "]",
+	["\""] = "\"",
+	["'"] = "'",
 }
 
 local x, y = 0, 0
@@ -1298,7 +1305,12 @@ local function edit(path)
 			elseif key == 14 and (displayCode and true or y + scrolly - 1 == liveErr.line) then
 				-- Backspace
 				if x > 1 then
-					lines[y] = lines[y]:sub(1, x - 2) .. lines[y]:sub(x, -1)
+					local f = false
+					for k, v in pairs(liveCompletions) do
+						if lines[y]:sub(x - 1, x - 1) == k then f = true end
+					end
+
+					lines[y] = lines[y]:sub(1, x - 2) .. lines[y]:sub(x + (f and 1 or 0), -1)
 					drawLine(y)
 					x = x - 1
 					cursorLoc(x, y)
@@ -1346,8 +1358,13 @@ local function edit(path)
 			end
 		elseif e == "char" and allowEditorEvent and (displayCode and true or 
 				y + scrolly - 1 == liveErr.line) then
+			-- Check for completions
+			for k, v in pairs(liveCompletions) do
+				if key == k and lines[y]:sub(x, x) ~= k then key = key .. v end
+			end
+
 			lines[y] = lines[y]:sub(1, x - 1) .. key .. lines[y]:sub(x, -1)
-			x = x + key:len()
+			x = x + 1
 			local force = false
 			if y - scrolly + offy < offy + 1 then force = true end
 			drawLine(y)
