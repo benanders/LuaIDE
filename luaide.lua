@@ -643,7 +643,8 @@ local function getCompilerErrors(code)
 	end
 
 	if err then
-		err = "string" .. err:sub(err:find("]", 1, true) + 1, -1)
+		local a = err:find("]", 1, true)
+		if a then err = "string" .. err:sub(a + 1, -1) end
 		local ret = parseError(err)
 		if tonumber(ret.line) then ret.line = tonumber(ret.line) end
 		return ret
