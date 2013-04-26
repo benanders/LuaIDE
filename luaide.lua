@@ -73,7 +73,7 @@ local function modRead(properties)
 	local function sendLiveUpdates(event, ...)
 		if type(properties.liveUpdates) == "function" then
 			local ox, oy = term.getCursorPos()
-			properties.liveUpdates(line, event, ...)
+			local a, data = properties.liveUpdates(line, event, ...)
 			if a == true and data == nil then
 				term.setCursorBlink(false)
 				return line
@@ -153,13 +153,15 @@ local function modRead(properties)
 				end
 
 				redraw()
-				sendLiveUpdates("history")
+				local a = sendLiveUpdates("history")
+				if a then return a end
 			elseif but == keys.backspace and pos > 0 then
 				redraw(" ")
 				line = line:sub(1, pos - 1) .. line:sub(pos + 1, -1)
 				pos = pos - 1
 				redraw()
-				sendLiveUpdates("delete")
+				local a = sendLiveUpdates("delete")
+				if a then return a end
 			elseif but == keys.home then
 				pos = 0
 				redraw()
@@ -167,7 +169,8 @@ local function modRead(properties)
 				redraw(" ")
 				line = line:sub(1, pos) .. line:sub(pos + 2, -1)
 				redraw()
-				sendLiveUpdates("delete")
+				local a = sendLiveUpdates("delete")
+				if a then return a end
 			elseif but == keys["end"] then
 				pos = line:len()
 				redraw()
@@ -179,7 +182,8 @@ local function modRead(properties)
 				end
 			end
 		end
-		sendLiveUpdates(e, but, x, y, p4, p5)
+		local a = sendLiveUpdates(e, but, x, y, p4, p5)
+		if a then return a end
 	end
 
 	term.setCursorBlink(false)
@@ -285,6 +289,13 @@ local function title(t)
 end
 
 local function centerRead(wid, begt)
+	local function liveUpdate(line, e, but, x, y, p4, p5)
+		if isAdvanced() and e == "mouse_click" and x >= w/2 - wid/2 and x <= w/2 - wid/2 + 10 
+				and y >= 13 and y <= 15 then
+			return true, ""
+		end
+	end
+
 	if not begt then begt = "" end
 	term.setTextColor(colors[theme.textColor])
 	term.setBackgroundColor(colors[theme.promptHighlight])
@@ -292,9 +303,21 @@ local function centerRead(wid, begt)
 		term.setCursorPos(w/2 - wid/2, i)
 		term.write(string.rep(" ", wid))
 	end
+
+	if isAdvanced() then
+		term.setBackgroundColor(colors[theme.errHighlight])
+		for i = 13, 15 do
+			term.setCursorPos(w/2 - wid/2 + 1, i)
+			term.write(string.rep(" ", 10))
+		end
+		term.setCursorPos(w/2 - wid/2 + 2, 14)
+		term.write("> Cancel")
+	end
+
+	term.setBackgroundColor(colors[theme.promptHighlight])
 	term.setCursorPos(w/2 - wid/2 + 1, 9)
 	term.write("> " .. begt)
-	return modRead({visibleLength = w/2 + wid/2}):gsub("^%s*(.-)%s*$", "%1")
+	return modRead({visibleLength = w/2 + wid/2, liveUpdates = liveUpdate})
 end
 
 
@@ -995,6 +1018,18 @@ end
 
 --  -------- Editing
 
+local functionCompletions = {
+	
+}
+
+local statementCompletions = {
+	"if%s+.+%s+then%s*$",
+	"for%s+.+%s+do%s*$",
+	"while%s+.+%s+do%s*$",
+	"repeat%s*$",
+	"function%s+[a-zA-Z_0-9]\(.*\)%s*$"
+}
+
 local x, y = 0, 0
 local edw, edh = 0, h - 1
 local offx, offy = 0, 1
@@ -1234,15 +1269,28 @@ local function edit(path)
 			elseif (key == 28 or key == 156) and (displayCode and true or y + scrolly - 1 ==
 					liveErr.line) then
 				-- Enter
+				local f = nil
+				for _, v in pairs(statementCompletions) do
+					if lines[y]:find(v) then f = v end
+				end
+
 				local _, spaces = lines[y]:find("^[ ]+")
 				if not spaces then spaces = 0 end
-				local oldLine = lines[y]
+				if f then
+					table.insert(lines, y + 1, string.rep(" ", spaces + 2))
+					table.insert(lines, y + 2, string.rep(" ", spaces) .. 
+						(f:find("repeat", 1, true) and "until " or "end"))
+					x, y = spaces + 3, y + 1
+					cursorLoc(x, y, true)
+				else
+					local oldLine = lines[y]
 
-				lines[y] = lines[y]:sub(1, x - 1)
-				table.insert(lines, y + 1, string.rep(" ", spaces) .. oldLine:sub(x, -1))
+					lines[y] = lines[y]:sub(1, x - 1)
+					table.insert(lines, y + 1, string.rep(" ", spaces) .. oldLine:sub(x, -1))
 
-				x, y = spaces + 1, y + 1
-				cursorLoc(x, y, true)
+					x, y = spaces + 1, y + 1
+					cursorLoc(x, y, true)
+				end
 			elseif key == 14 and (displayCode and true or y + scrolly - 1 == liveErr.line) then
 				-- Backspace
 				if x > 1 then
@@ -1412,7 +1460,9 @@ local function newFile()
 
 	-- Get name
 	title("Lua IDE - New File")
-	local name = "/" .. centerRead(wid, "/")
+	local name = centerRead(wid, "/")
+	if not name or name == "" then return "menu" end
+	name = "/" .. name
 
 	-- Clear
 	title("Lua IDE - New File")
@@ -1440,7 +1490,9 @@ local function openFile()
 
 	-- Get name
 	title("Lua IDE - Open File")
-	local name = "/" .. centerRead(wid, "/")
+	local name = centerRead(wid, "/")
+	if not name or name == "" then return "menu" end
+	name = "/" .. name
 
 	-- Clear
 	title("Lua IDE - New File")
