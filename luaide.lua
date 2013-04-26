@@ -1355,6 +1355,16 @@ local function edit(path)
 				if y - scrolly + offy < offy + 1 then force = true end
 				drawLine(y)
 				cursorLoc(x, y, force)
+			elseif key == 201 then
+				-- Page up
+				y = y - edh
+				x = math.min(lines[y]:len() + 1, x)
+				cursorLoc(x, y, true)
+			elseif key == 209 then
+				-- Page down
+				y = y + edh
+				x = math.min(lines[y]:len() + 1, x)
+				cursorLoc(x, y, true)
 			end
 		elseif e == "char" and allowEditorEvent and (displayCode and true or 
 				y + scrolly - 1 == liveErr.line) then
