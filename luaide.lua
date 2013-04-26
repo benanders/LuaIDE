@@ -508,7 +508,7 @@ end
 
 local function saveFile(path, lines)
 	local dir = path:sub(1, path:len() - fs.getName(path):len())
-	if not(fs.exists(dir)) then fs.makeDir(dir) end
+	if not fs.exists(dir) then fs.makeDir(dir) end
 	if not fs.isDir(path) and not fs.isReadOnly(path) then
 		local a = ""
 		for _, v in pairs(lines) do a = a .. v .. "\n" end
@@ -522,6 +522,8 @@ end
 
 local function loadFile(path)
 	if not fs.exists(path) then
+		local dir = path:sub(1, path:len() - fs.getName(path):len())
+		if not fs.exists(dir) then fs.makeDir(dir) end
 		local f = io.open(path, "w")
 		f:write("")
 		f:close()
