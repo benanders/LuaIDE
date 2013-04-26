@@ -1022,12 +1022,13 @@ local functionCompletions = {
 	
 }
 
-local statementCompletions = {
+local standardsCompletions = {
 	"if%s+.+%s+then%s*$",
 	"for%s+.+%s+do%s*$",
 	"while%s+.+%s+do%s*$",
 	"repeat%s*$",
-	"function%s+[a-zA-Z_0-9]\(.*\)%s*$"
+	"function%s+[a-zA-Z_0-9]\(.*\)%s*$",
+	".*%s+{"
 }
 
 local x, y = 0, 0
@@ -1270,7 +1271,7 @@ local function edit(path)
 					liveErr.line) then
 				-- Enter
 				local f = nil
-				for _, v in pairs(statementCompletions) do
+				for _, v in pairs(standardsCompletions) do
 					if lines[y]:find(v) then f = v end
 				end
 
@@ -1279,7 +1280,8 @@ local function edit(path)
 				if f then
 					table.insert(lines, y + 1, string.rep(" ", spaces + 2))
 					table.insert(lines, y + 2, string.rep(" ", spaces) .. 
-						(f:find("repeat", 1, true) and "until " or "end"))
+						(f:find("repeat", 1, true) and "until " or (f:find("{", 1, true) and "}" or 
+						"end")))
 					x, y = spaces + 3, y + 1
 					cursorLoc(x, y, true)
 				else
