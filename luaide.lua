@@ -1360,12 +1360,12 @@ local function edit(path)
 				cursorLoc(x, y, force)
 			elseif key == 201 then
 				-- Page up
-				y = y - edh
+				y = math.min(math.max(y - edh, 1), #lines)
 				x = math.min(lines[y]:len() + 1, x)
 				cursorLoc(x, y, true)
 			elseif key == 209 then
 				-- Page down
-				y = y + edh
+				y = math.min(math.max(y + edh, 1), #lines)
 				x = math.min(lines[y]:len() + 1, x)
 				cursorLoc(x, y, true)
 			end
