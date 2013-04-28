@@ -30,6 +30,10 @@ local clipboard = nil
 -- Theme
 local theme = {}
 
+-- Language
+local languages = {}
+local curLanguage = {}
+
 -- Events
 local event_distract = "luaide_distractionEvent"
 
@@ -547,9 +551,14 @@ local function loadFile(path)
 end
 
 
---  -------- Compiler Errors
+--  -------- Languages
 
-local helpTips = {
+languages.lua = {}
+languages.brainfuck = {}
+
+--  Lua
+
+languages.lua.helpTips = {
 	"A function you tried to call doesn't exist.",
 	"You made a typo.",
 	"The index of an array is nil.",
@@ -558,11 +567,14 @@ local helpTips = {
 	"You missed an 'end'.",
 	"You missed a 'then'.",
 	"You declared a variable incorrectly.",
-	"One of your variables is mysteriously nil.",
-
+	"One of your variables is mysteriously nil."
 }
 
-local errors = {
+languages.lua.defaultHelpTips = {
+	2, 5
+}
+
+languages.lua.errors = {
 	["Attempt to call nil."] = {1, 2},
 	["Attempt to index nil."] = {3, 2},
 	[".+ expected, got .+"] = {4, 2, 9},
@@ -571,7 +583,7 @@ local errors = {
 	["'=' expected"] = {8, 2}
 }
 
-local function parseError(e)
+languages.lua.parseError = function(e)
 	local ret = {filename = "unknown", line = -1, display = "Unknown!", err = ""}
 	if e and e ~= "" then
 		ret.err = e
@@ -579,18 +591,179 @@ local function parseError(e)
 		e = e:sub(e:find(":") + 1) .. "" -- The "" is needed to circumvent a CC bug
 		ret.line = e:sub(1, e:find(":") - 1)
 		e = e:sub(e:find(":") + 2):gsub("^%s*(.-)%s*$", "%1") .. ""
-		ret.display = e:sub(1, 1):upper() .. e:sub(2) .. "."
+		ret.display = e:sub(1, 1):upper() .. e:sub(2, -1) .. "."
 	end
 
 	return ret
 end
 
+languages.lua.getCompilerErrors = function(code)
+	code = "local function ee65da6af1cb6f63fee9a081246f2fd92b36ef2(...)\n\n" .. code .. "\n\nend"
+	local fn, err = loadstring(code)
+	if not err then
+		local _, e = pcall(fn)
+		if e then err = e end
+	end
+
+	if err then
+		local a = err:find("]", 1, true)
+		if a then err = "string" .. err:sub(a + 1, -1) end
+		local ret = languages.lua.parseError(err)
+		if tonumber(ret.line) then ret.line = tonumber(ret.line) end
+		return ret
+	else return languages.lua.parseError(nil) end
+end
+
+languages.lua.run = function(path)
+	local fn, err = loadfile(path)
+	setfenv(fn, getfenv())
+	if not err then
+		_, err = pcall(function() fn(unpack(ar)) end)
+	end
+	return err
+end
+
+
+--  Brainfuck
+
+languages.brainfuck.helpTips = {
+	"Well idk...",
+	"Isn't this the whole point of the language?",
+	"Ya know... Not being able to debug it?",
+	"You made a typo."
+}
+
+languages.brainfuck.defaultHelpTips = {
+	1, 2, 3
+}
+
+languages.brainfuck.errors = {
+	["No matching '['"] = {1, 2, 3, 4}
+}
+
+languages.brainfuck.parseError = function(e)
+	local ret = {filename = "unknown", line = -1, display = "Unknown!", err = ""}
+	if e and e ~= "" then
+		ret.err = e
+		ret.line = e:sub(1, e:find(":") - 1)
+		e = e:sub(e:find(":") + 2):gsub("^%s*(.-)%s*$", "%1") .. ""
+		ret.display = e:sub(1, 1):upper() .. e:sub(2, -1) .. "."
+	end
+
+	return ret
+end
+
+languages.brainfuck.mapLoops = function(code)
+	-- Map loops
+	local loopLocations = {}
+	local loc = 1
+	local line = 1
+	for let in string.gmatch(code, ".") do
+		if let == "[" then
+			loopLocations[loc] = true
+		elseif let == "]" then
+			local found = false
+			for i = loc, 1, -1 do 
+				if loopLocations[i] == true then
+					loopLocations[i] = loc
+					found = true
+				end
+			end
+
+			if not found then
+				return line .. ": No matching '['"
+			end
+		end
+
+		if let == "\n" then line = line + 1 end
+		loc = loc + 1
+	end
+	return loopLocations
+end
+
+languages.brainfuck.getCompilerErrors = function(code)
+	local a = languages.brainfuck.mapLoops(code)
+	if type(a) == "string" then return languages.brainfuck.parseError(a)
+	else return languages.brainfuck.parseError(nil) end
+end
+
+languages.brainfuck.run = function(path)
+	-- Read from file
+	local f = io.open(path, "r")
+	local content = f:read("*a")
+	f:close()
+
+	-- Define environment
+	local dataCells = {}
+	local dataPointer = 1
+	local instructionPointer = 1
+
+	-- Map loops
+	local loopLocations = languages.brainfuck.mapLoops(content)
+	if type(loopLocations) == "string" then return loopLocations end
+
+	-- Execute code
+	while true do
+		local let = content:sub(instructionPointer, instructionPointer)
+
+		if let == ">" then
+			dataPointer = dataPointer + 1
+			if not dataCells[tostring(dataPointer)] then dataCells[tostring(dataPointer)] = 0 end
+		elseif let == "<" then
+			if not dataCells[tostring(dataPointer)] then dataCells[tostring(dataPointer)] = 0 end
+			dataPointer = dataPointer - 1
+			if not dataCells[tostring(dataPointer)] then dataCells[tostring(dataPointer)] = 0 end
+		elseif let == "+" then
+			if not dataCells[tostring(dataPointer)] then dataCells[tostring(dataPointer)] = 0 end
+			dataCells[tostring(dataPointer)] = dataCells[tostring(dataPointer)] + 1
+		elseif let == "-" then
+			if not dataCells[tostring(dataPointer)] then dataCells[tostring(dataPointer)] = 0 end
+			dataCells[tostring(dataPointer)] = dataCells[tostring(dataPointer)] - 1
+		elseif let == "." then
+			if not dataCells[tostring(dataPointer)] then dataCells[tostring(dataPointer)] = 0 end
+			if term.getCursorPos() >= w then print("") end
+			write(string.char(math.max(1, dataCells[tostring(dataPointer)])))
+		elseif let == "," then
+			if not dataCells[tostring(dataPointer)] then dataCells[tostring(dataPointer)] = 0 end
+			term.setCursorBlink(true)
+			local e, but = os.pullEvent("char")
+			term.setCursorBlink(false)
+			dataCells[tostring(dataPointer)] = string.byte(but)
+			if term.getCursorPos() >= w then print("") end
+			write(but)
+		elseif let == "/" then
+			if not dataCells[tostring(dataPointer)] then dataCells[tostring(dataPointer)] = 0 end
+			if term.getCursorPos() >= w then print("") end
+			write(dataCells[tostring(dataPointer)])
+		elseif let == "[" then
+			if dataCells[tostring(dataPointer)] == 0 then
+				for k, v in pairs(loopLocations) do
+					if k == instructionPointer then instructionPointer = v end
+				end
+			end
+		elseif let == "]" then
+			for k, v in pairs(loopLocations) do
+				if v == instructionPointer then instructionPointer = k - 1 end
+			end
+		end
+
+		instructionPointer = instructionPointer + 1
+		if instructionPointer > content:len() then print("") break end
+	end
+end
+
+
+-- Load language
+curLanguage = languages.lua
+
+
+--  -------- Run GUI
+
 local function viewErrorHelp(e)
 	title("LuaIDE - Error Help")
 
-	local defTips = {2, 5}
 	local tips = nil
-	for k, v in pairs(errors) do
+	for k, v in pairs(curLanguage.errors) do
 		if e.display:find(k) then tips = v break end
 	end
 
@@ -614,7 +787,7 @@ local function viewErrorHelp(e)
 		term.setBackgroundColor(colors[theme.prompt])
 		for i, v in ipairs(tips) do
 			term.setCursorPos(7, i + 10)
-			term.write("- " .. helpTips[v])
+			term.write("- " .. curLanguage.helpTips[v])
 		end
 	else
 		term.setBackgroundColor(colors[theme.err])
@@ -627,34 +800,14 @@ local function viewErrorHelp(e)
 		term.setCursorPos(6, 12)
 		term.write("you could see if it was any of these:")
 
-		for i, v in ipairs(defTips) do
+		for i, v in ipairs(curLanguage.defaultHelpTips) do
 			term.setCursorPos(7, i + 12)
-			term.write("- " .. helpTips[v])
+			term.write("- " .. curLanguage.helpTips[v])
 		end
 	end
 
 	prompt({{"Back", w - 8, 7}}, "horizontal")
 end
-
-local function getCompilerErrors(code)
-	code = "local function ee65da6af1cb6f63fee9a081246f2fd92b36ef2(...)\n\n" .. code .. "\n\nend"
-	local fn, err = loadstring(code)
-	if not err then
-		local _, e = pcall(fn)
-		if e then err = e end
-	end
-
-	if err then
-		local a = err:find("]", 1, true)
-		if a then err = "string" .. err:sub(a + 1, -1) end
-		local ret = parseError(err)
-		if tonumber(ret.line) then ret.line = tonumber(ret.line) end
-		return ret
-	else return parseError(nil) end
-end
-
-
---  -------- Running
 
 local function run(path, lines, useArgs)
 	local ar = {}
@@ -670,11 +823,7 @@ local function run(path, lines, useArgs)
 	term.setTextColor(colors.white)
 	term.clear()
 	term.setCursorPos(1, 1)
-	local fn, err = loadfile(path)
-	setfenv(fn, getfenv())
-	if not err then
-		_, err = pcall(function() fn(unpack(ar)) end)
-	end
+	local err = curLanguage.run(path)
 
 	term.setBackgroundColor(colors.black)
 	print("\n")
@@ -686,7 +835,7 @@ local function run(path, lines, useArgs)
 	centerPrint("Press any key to return to LuaIDE...")
 	while true do
 		local e = os.pullEvent()
-		if e == "mouse_click" or e == "key" then break end
+		if e == "key" then break end
 	end
 
 	-- To prevent key from showing up in editor
@@ -694,7 +843,10 @@ local function run(path, lines, useArgs)
 	os.pullEvent()
 
 	if err then
-		if err:find("]") then err = fs.getName(path) .. err:sub(err:find("]", 1, true) + 1, -1) end
+		if curLanguage == languages.lua and err:find("]") then
+			err = fs.getName(path) .. err:sub(err:find("]", 1, true) + 1, -1)
+		end
+
 		while true do
 			title("LuaIDE - Error!")
 
@@ -711,7 +863,8 @@ local function run(path, lines, useArgs)
 				term.setCursorPos(3, i)
 				term.write(string.rep(" ", w - 5))
 			end
-			local formattedErr = parseError(err)
+
+			local formattedErr = curLanguage.parseError(err)
 			term.setCursorPos(4, 11)
 			term.write("Line: " .. formattedErr.line)
 			term.setCursorPos(4, 12)
@@ -759,7 +912,7 @@ local function goto()
 	term.setCursorPos(2, 1)
 	term.clearLine()
 	term.write("Line: ")
-	local line = modRead({visibleLength = w - 2}):gsub("^%s*(.-)%s*$", "%1")
+	local line = modRead({visibleLength = w - 2})
 
 	local num = tonumber(line)
 	if num and num > 0 then return num
@@ -769,6 +922,41 @@ local function goto()
 		term.write("Not a line number!")
 		sleep(1.6)
 		return nil
+	end
+end
+
+local function setsyntax()
+	local opts = {
+		"[Lua]   Brainfuck    None ",
+		" Lua   [Brainfuck]   None ",
+		" Lua    Brainfuck   [None]"
+	}
+	local sel = 1
+
+	term.setCursorBlink(false)
+	term.setBackgroundColor(colors[theme.backgroundHighlight])
+	term.setCursorPos(2, 1)
+	term.clearLine()
+	term.write(opts[sel])
+	while true do
+		local e, but, x, y = os.pullEvent("key")
+		if but == 203 then
+			sel = math.max(1, sel - 1)
+			term.setCursorPos(2, 1)
+			term.clearLine()
+			term.write(opts[sel])
+		elseif but == 205 then
+			sel = math.min(#opts, sel + 1)
+			term.setCursorPos(2, 1)
+			term.clearLine()
+			term.write(opts[sel])
+		elseif but == 28 then
+			if sel == 1 then curLanguage = languages.lua highlightSyntax = true
+			elseif sel == 2 then curLanguage = languages.brainfuck highlightSyntax = false
+			elseif sel == 3 then curLanguage = languages.lua highlightSyntax = false end
+			term.setCursorBlink(true)
+			return
+		end
 	end
 end
 
@@ -840,7 +1028,7 @@ local menu = {
 	}, [3] = {"Functions",
 		"Go To Line    ^+G",
 --		"Re-Indent     ^+I",
-		"Toggle Colouring",
+		"Set Syntax    ^+E",
 		"Start of Line ^+<",
 		"End of Line   ^+>"
 	}, [4] = {"Run",
@@ -868,7 +1056,7 @@ local shortcuts = {
 	-- Functions
 	["ctrl g"] = "Go To Line    ^+G",
 --	["ctrl i"] = "Re-Indent     ^+I",
-	["0"] = "Toggle Colouring",
+	["ctrl e"] = "Set Syntax    ^+E",
 	["ctrl 203"] = "Start of Line ^+<",
 	["ctrl 205"] = "End of Line   ^+>",
 
@@ -899,7 +1087,13 @@ local menuFunctions = {
 	["Go To Line    ^+G"] = function() return nil, "go to", goto() end,
 --	["Re-Indent     ^+I"] = function(path, lines)
 --		local a = reindent(lines) saveFile(path, lines) return nil end,
-	["Toggle Colouring"] = function() highlightSyntax = not highlightSyntax end,
+	["Set Syntax    ^+E"] = function(path, lines)
+		setsyntax()
+		if curLanguage == languages.brainfuck and lines[1] ~= "-- Syntax: Brainfuck" then
+			table.insert(lines, 1, "-- Syntax: Brainfuck")
+			return nil, lines
+		end
+	end,
 	["Start of Line ^+<"] = function() os.queueEvent("key", 199) end,
 	["End of Line   ^+>"] = function() os.queueEvent("key", 207) end,
 
@@ -1048,7 +1242,7 @@ local edw, edh = 0, h - 1
 local offx, offy = 0, 1
 local scrollx, scrolly = 0, 0
 local lines = {}
-local liveErr = parseError(nil)
+local liveErr = curLanguage.parseError(nil)
 local displayCode = true
 local lastEventClock = os.clock()
 
@@ -1240,6 +1434,12 @@ local function edit(path)
 	scrollx, scrolly = 0, 0
 	lines = loadFile(path)
 	if not lines then return "menu" end
+
+	-- Enable brainfuck
+	if lines[1] == "-- Syntax: Brainfuck" then
+		curLanguage = languages.brainfuck
+		highlightSyntax = false
+	end
 
 	-- Clocks
 	local autosaveClock = os.clock()
@@ -1471,11 +1671,11 @@ local function edit(path)
 		-- Errors
 		if os.clock() - liveErrorClock > 1 then
 			local prevLiveErr = liveErr
-			liveErr = parseError(nil)
+			liveErr = curLanguage.parseError(nil)
 			if liveErrors then
 				local code = ""
 				for _, v in pairs(lines) do code = code .. v .. "\n" end
-				liveErr = getCompilerErrors(code)
+				liveErr = curLanguage.getCompilerErrors(code)
 				liveErr.line = math.min(liveErr.line - 2, #lines)
 			end
 			if liveErr ~= prevLiveErr then draw() end
