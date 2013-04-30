@@ -247,9 +247,12 @@ local normalTheme = {
 local availableThemes = {
 	{"Water (Default)", "https://raw.github.com/GravityScore/LuaIDE/master/themes/default.txt"},
 	{"Fire", "https://raw.github.com/GravityScore/LuaIDE/master/themes/fire.txt"},
+	{"Sublime Text 2", "https://raw.github.com/GravityScore/LuaIDE/master/themes/st2.txt"},
+	{"Midnight", "https://raw.github.com/GravityScore/LuaIDE/master/themes/midnight.txt"},
+	{"TheOriginalBIT", "https://raw.github.com/GravityScore/LuaIDE/master/themes/bit.txt"},
 	{"Forest", "https://raw.github.com/GravityScore/LuaIDE/master/themes/forest.txt"},
 	{"Night", "https://raw.github.com/GravityScore/LuaIDE/master/themes/night.txt"},
-	{"Original", "https://raw.github.com/GravityScore/LuaIDE/master/themes/original.txt"}
+	{"Original", "https://raw.github.com/GravityScore/LuaIDE/master/themes/original.txt"},
 }
 
 local function loadTheme(path)
