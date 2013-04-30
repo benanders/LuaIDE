@@ -11,9 +11,6 @@
 local version = "1.0"
 local args = {...}
 
--- Updating
-local autoupdate = true
-
 -- Editing
 local w, h = term.getSize()
 local highlightSyntax = true
