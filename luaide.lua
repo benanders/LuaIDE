@@ -1491,9 +1491,11 @@ local function edit(path)
 				if not spaces then spaces = 0 end
 				if f then
 					table.insert(lines, y + 1, string.rep(" ", spaces + 2))
-					table.insert(lines, y + 2, string.rep(" ", spaces) .. 
-						(f:find("repeat", 1, true) and "until " or (f:find("{", 1, true) and "}" or 
-						"end")))
+					if not f:find("else", 1, true) and not f:find("elseif", 1, true) then
+						table.insert(lines, y + 2, string.rep(" ", spaces) .. 
+							(f:find("repeat", 1, true) and "until " or (f:find("{", 1, true) and "}" or 
+							"end"))
+					end
 					x, y = spaces + 3, y + 1
 					cursorLoc(x, y, true)
 				else
