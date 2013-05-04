@@ -614,7 +614,7 @@ languages.lua.getCompilerErrors = function(code)
 	else return languages.lua.parseError(nil) end
 end
 
-languages.lua.run = function(path)
+languages.lua.run = function(path, ar)
 	local fn, err = loadfile(path)
 	setfenv(fn, getfenv())
 	if not err then
@@ -823,7 +823,7 @@ local function run(path, lines, useArgs)
 	term.setTextColor(colors.white)
 	term.clear()
 	term.setCursorPos(1, 1)
-	local err = curLanguage.run(path)
+	local err = curLanguage.run(path, ar)
 
 	term.setBackgroundColor(colors.black)
 	print("\n")
@@ -1263,8 +1263,8 @@ local function writeHighlighted(line)
 		while line:len() > 0 do	
 			line = attemptToHighlight(line, "^%-%-%[%[.-%]%]", colors[theme.comment]) or
 				attemptToHighlight(line, "^%-%-.*", colors[theme.comment]) or
-				attemptToHighlight(line, "^\".-[^\\]\"", colors[theme.string]) or
-				attemptToHighlight(line, "^\'.-[^\\]\'", colors[theme.string]) or
+				attemptToHighlight(line, "^\".*[^\\]\"", colors[theme.string]) or
+				attemptToHighlight(line, "^\'.*[^\\]\'", colors[theme.string]) or
 				attemptToHighlight(line, "^%[%[.-%]%]", colors[theme.string]) or
 				attemptToHighlight(line, "^[%w_]+", function(match)
 					if keywords[match] then return colors[theme[keywords[match]]] end
@@ -1571,12 +1571,20 @@ local function edit(path)
 			end
 		elseif e == "char" and allowEditorEvent and (displayCode and true or 
 				y + scrolly - 1 == liveErr.line) then
-			-- Check for completions
+			local shouldIgnore = false
 			for k, v in pairs(liveCompletions) do
-				if key == k and lines[y]:sub(x, x) ~= k then key = key .. v end
+				if key == v and lines[y]:find(k, 1, true) and lines[y]:sub(x, x) == v then
+					shouldIgnore = true
+				end
 			end
 
-			lines[y] = lines[y]:sub(1, x - 1) .. key .. lines[y]:sub(x, -1)
+			if not shouldIgnore then
+				for k, v in pairs(liveCompletions) do
+					if key == k and lines[y]:sub(x, x) ~= k then key = key .. v end
+				end
+				lines[y] = lines[y]:sub(1, x - 1) .. key .. lines[y]:sub(x, -1)
+			end
+
 			x = x + 1
 			local force = false
 			if y - scrolly + offy < offy + 1 then force = true end
