@@ -1,4 +1,3 @@
-
 --  
 --  Lua IDE
 --  Made by GravityScore
@@ -247,6 +246,7 @@ local availableThemes = {
 	{"Sublime Text 2", "https://raw.github.com/GravityScore/LuaIDE/master/themes/st2.txt"},
 	{"Midnight", "https://raw.github.com/GravityScore/LuaIDE/master/themes/midnight.txt"},
 	{"TheOriginalBIT", "https://raw.github.com/GravityScore/LuaIDE/master/themes/bit.txt"},
+	{"Superaxander", "https://raw.github.com/GravityScore/LuaIDE/master/themes/superaxander.txt"},
 	{"Forest", "https://raw.github.com/GravityScore/LuaIDE/master/themes/forest.txt"},
 	{"Night", "https://raw.github.com/GravityScore/LuaIDE/master/themes/night.txt"},
 	{"Original", "https://raw.github.com/GravityScore/LuaIDE/master/themes/original.txt"},
