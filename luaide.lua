@@ -992,8 +992,6 @@ local keywords = {
 	["then"] = "conditional",
 	["until"] = "conditional",
 	["while"] = "conditional",
-	["pairs"] = "conditional",
-	["ipairs"] = "conditional",
 
 	["true"] = "constant",
 	["false"] = "constant",
@@ -1001,7 +999,9 @@ local keywords = {
 
 --	["print"] = "function",
 --	["write"] = "function",
---	["sleep"] = "function",
+	["sleep"] = "function",
+	["pairs"] = "function",
+	["ipairs"] = "function",
 	["loadstring"] = "function",
 	["loadfile"] = "function",
 	["dofile"] = "function",
