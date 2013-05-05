@@ -1495,7 +1495,7 @@ local function edit(path)
 					table.insert(lines, y + 1, string.rep(" ", spaces + 2))
 					if not f:find("else", 1, true) and not f:find("elseif", 1, true) then
 						table.insert(lines, y + 2, string.rep(" ", spaces) .. 
-							(f:find("repeat", 1, true) and "until " or (f:find("{", 1, true) and "}" or 
+							(f:find("repeat", 1, true) and "until " or f:find("{", 1, true) and "}" or 
 							"end"))
 					end
 					x, y = spaces + 3, y + 1
