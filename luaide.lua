@@ -1581,14 +1581,15 @@ local function edit(path)
 				end
 			end
 
+			local addOne = false
 			if not shouldIgnore then
 				for k, v in pairs(liveCompletions) do
-					if key == k and lines[y]:sub(x, x) ~= k then key = key .. v end
+					if key == k and lines[y]:sub(x, x) ~= k then key = key .. v addOne = true end
 				end
 				lines[y] = lines[y]:sub(1, x - 1) .. key .. lines[y]:sub(x, -1)
 			end
 
-			x = x + 1
+			x = x + (addOne and 1 or key:len())
 			local force = false
 			if y - scrolly + offy < offy + 1 then force = true end
 			drawLine(y)
