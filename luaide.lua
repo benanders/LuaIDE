@@ -266,9 +266,8 @@ local function loadTheme(path)
 end
 
 -- Load Theme
-if fs.exists(themeLocation) then theme = loadTheme(themeLocation) end
-if not theme and isAdvanced() then theme = defaultTheme
-elseif not theme then theme = normalTheme end
+if isAdvanced() then theme = defaultTheme
+else theme = normalTheme end
 
 
 --  -------- Drawing
