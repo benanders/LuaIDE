@@ -1,3 +1,4 @@
+
 --  
 --  Lua IDE
 --  Made by GravityScore
@@ -12,7 +13,6 @@ local args = {...}
 
 -- Editing
 local w, h = term.getSize()
-local highlightSyntax = true
 local liveErrors = true
 local tabWidth = 2
 
@@ -556,6 +556,7 @@ end
 
 languages.lua = {}
 languages.brainfuck = {}
+languages.none = {}
 
 --  Lua
 
@@ -582,6 +583,44 @@ languages.lua.errors = {
 	["'end' expected"] = {6, 2},
 	["'then' expected"] = {7, 2},
 	["'=' expected"] = {8, 2}
+}
+
+languages.lua.keywords = {
+	["and"] = "conditional",
+	["break"] = "conditional",
+	["do"] = "conditional",
+	["else"] = "conditional",
+	["elseif"] = "conditional",
+	["end"] = "conditional",
+	["for"] = "conditional",
+	["function"] = "conditional",
+	["if"] = "conditional",
+	["in"] = "conditional",
+	["local"] = "conditional",
+	["not"] = "conditional",
+	["or"] = "conditional",
+	["repeat"] = "conditional",
+	["return"] = "conditional",
+	["then"] = "conditional",
+	["until"] = "conditional",
+	["while"] = "conditional",
+
+	["true"] = "constant",
+	["false"] = "constant",
+	["nil"] = "constant",
+
+	["print"] = "function",
+	["write"] = "function",
+	["sleep"] = "function",
+	["pairs"] = "function",
+	["ipairs"] = "function",
+	["loadstring"] = "function",
+	["loadfile"] = "function",
+	["dofile"] = "function",
+	["rawset"] = "function",
+	["rawget"] = "function",
+	["setfenv"] = "function",
+	["getfenv"] = "function",
 }
 
 languages.lua.parseError = function(e)
@@ -641,6 +680,8 @@ languages.brainfuck.defaultHelpTips = {
 languages.brainfuck.errors = {
 	["No matching '['"] = {1, 2, 3, 4}
 }
+
+languages.brainfuck.keywords = {}
 
 languages.brainfuck.parseError = function(e)
 	local ret = {filename = "unknown", line = -1, display = "Unknown!", err = ""}
@@ -752,6 +793,23 @@ languages.brainfuck.run = function(path)
 		if instructionPointer > content:len() then print("") break end
 	end
 end
+
+--  None
+
+languages.none.helpTips = {}
+languages.none.defaultHelpTips = {}
+languages.none.errors = {}
+languages.none.keywords = {}
+
+languages.none.parseError = function(err)
+	return {filename = "", line = -1, display = "", err = ""}
+end
+
+languages.none.getCompilerErrors = function(code)
+	return languages.none.parseError(nil)
+end
+
+languages.none.run = function(path) end
 
 
 -- Load language
@@ -952,65 +1010,202 @@ local function setsyntax()
 			term.clearLine()
 			term.write(opts[sel])
 		elseif but == 28 then
-			if sel == 1 then curLanguage = languages.lua highlightSyntax = true
-			elseif sel == 2 then curLanguage = languages.brainfuck highlightSyntax = false
-			elseif sel == 3 then curLanguage = languages.lua highlightSyntax = false end
+			if sel == 1 then curLanguage = languages.lua
+			elseif sel == 2 then curLanguage = languages.brainfuck
+			elseif sel == 3 then curLanguage = languages.none end
 			term.setCursorBlink(true)
 			return
 		end
 	end
 end
 
---[[
-local incrementIndent = {"if", "do", "repeat", "function"}
-local decrementIndent = {"end", "until"}
-local specialIndent = {"elseif", "else"}
 
-local function reindent(code)
+--  -------- Re-Indenting
 
+local tabWidth = 2
+
+local comments = {}
+local strings = {}
+
+local increment = {
+	"if%s+.+%s+then%s*$",
+	"for%s+.+%s+do%s*$",
+	"while%s+.+%s+do%s*$",
+	"repeat%s*$",
+	"function%s+[a-zA-Z_0-9]\(.*\)%s*$"
+}
+
+local decrement = {
+	"end",
+	"until%s+.+"
+}
+
+local special = {
+	"else%s*$",
+	"elseif%s+.+%s+then%s*$"
+}
+
+local function check(func)
+	for _, v in pairs(func) do
+		local cLineStart = v["lineStart"]
+		local cLineEnd = v["lineEnd"]
+		local cCharStart = v["charStart"]
+		local cCharEnd = v["charEnd"]
+
+		if line >= cLineStart and line <= cLineEnd then
+			if line == cLineStart then return cCharStart < charNumb
+			elseif line == cLineEnd then return cCharEnd > charNumb
+			else return true end
+		end
+	end
 end
-]]--
+
+local function isIn(line, loc)
+	if check(comments) then return true end
+	if check(strings) then return true end
+	return false
+end
+
+local function setComment(ls, le, cs, ce)
+	comments[#comments + 1] = {}
+	comments[#comments].lineStart = ls
+	comments[#comments].lineEnd = le
+	comments[#comments].charStart = cs
+	comments[#comments].charEnd = ce
+end
+
+local function setString(ls, le, cs, ce)
+	strings[#strings + 1] = {}
+	strings[#strings].lineStart = ls
+	strings[#strings].lineEnd = le
+	strings[#strings].charStart = cs
+	strings[#strings].charEnd = ce
+end
+
+local function map(contents)
+	local inCom = false
+	local inStr = false
+
+	for i = 1, #contents do
+		if content[i]:find("%-%-%[%[") and not inStr and not inCom then
+			local cStart = content[i]:find("%-%-%[%[")
+			setComment(i, nil, cStart, nil)
+			inCom = true
+		elseif content[i]:find("%-%-%[=%[") and not inStr and not inCom then
+			local cStart = content[i]:find("%-%-%[=%[")
+			setComment(i, nil, cStart, nil)
+			inCom = true
+		elseif content[i]:find("%[%[") and not inStr and not inCom then
+			local cStart = content[i]:find("%[%[")
+			setString(i, nil, cStart, nil)
+			inStr = true
+		elseif content[i]:find("%[=%[") and not inStr and not inCom then
+			local cStart = content[i]:find("%[=%[")
+			setString(i, nil, cStart, nil)
+			inStr = true
+		end
+
+		if content[i]:find("%]%]") and inStr and not inCom then
+			local cStart, cEnd = content[i]:find("%]%]")
+			strings[#strings].lineEnd = i
+			strings[#strings].charEnd = cEnd
+			inStr = false
+		elseif content[i]:find("%]=%]") and inStr and not inCom then
+			local cStart, cEnd = content[i]:find("%]=%]")
+			strings[#strings].lineEnd = i
+			strings[#strings].charEnd = cEnd
+			inStr = false
+		end
+
+		if content[i]:find("%]%]") and not inStr and inCom then
+			local cStart, cEnd = content[i]:find("%]%]")
+			comments[#comments].lineEnd = i
+			comments[#comments].charEnd = cEnd
+			inCom = false
+		elseif content[i]:find("%]=%]") and not inStr and inCom then
+			local cStart, cEnd = content[i]:find("%]=%]")
+			comments[#comments].lineEnd = i
+			comments[#comments].charEnd = cEnd
+			inCom = false
+		end
+
+		if content[i]:find("%-%-") and not inStr and not inCom then
+			local cStart = content[i]:find("%-%-")
+			setComment(i, i, cStart, -1)
+		elseif content[i]:find("'") and not inStr and not inCom then
+			local cStart, cEnd = content[i]:find("'")
+			local nextChar = content[i]:sub(cEnd + 1, string.len(content[i]))
+			local _, cEnd = nextChar:find("'")
+			setString(i, i, cStart, cEnd)
+		elseif content[i]:find('"') and not inStr and not inCom then
+			local cStart, cEnd = content[i]:find('"')
+			local nextChar = content[i]:sub(cEnd + 1, string.len(content[i]))
+			local _, cEnd = nextChar:find('"')
+			setString(i, i, cStart, cEnd)
+		end
+	end
+end
+
+local function reindent(contents)
+	local err = nil
+	if curLanguage ~= languages.lua then
+		err = "Cannot indent languages other than Lua!"
+	elseif curLanguage.getCompilerErrors(table.concat(contents, "\n")).line ~= -1 then
+		err = "Cannot indent a program with errors!"
+	end
+
+	if err then
+		term.setCursorBlink(false)
+		term.setCursorPos(2, 1)
+		term.setBackgroundColor(colors[theme.backgroundHighlight])
+		term.clearLine()
+		term.write(err)
+		sleep(1.6)
+		return contents
+	end
+
+	local new = {}
+	local level = 0
+	for k, v in pairs(contents) do
+		local incrLevel = false
+		local foundIncr = false
+		for _, incr in pairs(increment) do
+			if v:find(incr) and not isIn(k, v:find(incr)) then
+				incrLevel = true
+			end
+			if v:find(incr:sub(1, -2)) and not isIn(k, v:find(incr)) then
+				foundIncr = true
+			end
+		end
+
+		local decrLevel = false
+		if not incrLevel then
+			for _, decr in pairs(decrement) do
+				if v:find(decr) and not isIn(k, v:find(decr)) and not foundIncr then
+					level = math.max(0, level - 1)
+					decrLevel = true
+				end
+			end
+		end
+
+		if not decrLevel then
+			for _, sp in pairs(special) do
+				if v:find(sp) and not isIn(k, v:find(sp)) then
+					incrLevel = true
+					level = math.max(0, level - 1)
+				end
+			end
+		end
+
+		new[k] = string.rep(" ", level * tabWidth) .. v
+		if incrLevel then level = level + 1 end
+	end
+
+	return new
+end
 
 
 --  -------- Menu
-
-local keywords = {
-	["and"] = "conditional",
-	["break"] = "conditional",
-	["do"] = "conditional",
-	["else"] = "conditional",
-	["elseif"] = "conditional",
-	["end"] = "conditional",
-	["for"] = "conditional",
-	["function"] = "conditional",
-	["if"] = "conditional",
-	["in"] = "conditional",
-	["local"] = "conditional",
-	["not"] = "conditional",
-	["or"] = "conditional",
-	["repeat"] = "conditional",
-	["return"] = "conditional",
-	["then"] = "conditional",
-	["until"] = "conditional",
-	["while"] = "conditional",
-
-	["true"] = "constant",
-	["false"] = "constant",
-	["nil"] = "constant",
-
---	["print"] = "function",
---	["write"] = "function",
-	["sleep"] = "function",
-	["pairs"] = "function",
-	["ipairs"] = "function",
-	["loadstring"] = "function",
-	["loadfile"] = "function",
-	["dofile"] = "function",
-	["rawset"] = "function",
-	["rawget"] = "function",
-	["setfenv"] = "function",
-	["getfenv"] = "function",
-}
 
 local menu = {
 	[1] = {"File",
@@ -1028,7 +1223,7 @@ local menu = {
 		"Clear Line"
 	}, [3] = {"Functions",
 		"Go To Line    ^+G",
---		"Re-Indent     ^+I",
+		"Re-Indent     ^+I",
 		"Set Syntax    ^+E",
 		"Start of Line ^+<",
 		"End of Line   ^+>"
@@ -1056,7 +1251,7 @@ local shortcuts = {
 
 	-- Functions
 	["ctrl g"] = "Go To Line    ^+G",
---	["ctrl i"] = "Re-Indent     ^+I",
+	["ctrl i"] = "Re-Indent     ^+I",
 	["ctrl e"] = "Set Syntax    ^+E",
 	["ctrl 203"] = "Start of Line ^+<",
 	["ctrl 205"] = "End of Line   ^+>",
@@ -1086,8 +1281,9 @@ local menuFunctions = {
 
 	-- Functions
 	["Go To Line    ^+G"] = function() return nil, "go to", goto() end,
---	["Re-Indent     ^+I"] = function(path, lines)
---		local a = reindent(lines) saveFile(path, lines) return nil end,
+	["Re-Indent     ^+I"] = function(path, lines)
+		local a = reindent(lines) saveFile(path, lines) return nil, a
+	end,
 	["Set Syntax    ^+E"] = function(path, lines)
 		setsyntax()
 		if curLanguage == languages.brainfuck and lines[1] ~= "-- Syntax: Brainfuck" then
@@ -1216,10 +1412,6 @@ end
 
 --  -------- Editing
 
-local functionCompletions = {
-	
-}
-
 local standardsCompletions = {
 	"if%s+.+%s+then%s*$",
 	"for%s+.+%s+do%s*$",
@@ -1260,7 +1452,7 @@ local function attemptToHighlight(line, regex, col)
 end
 
 local function writeHighlighted(line)
-	if highlightSyntax then
+	if curLanguage == languages.lua then
 		while line:len() > 0 do	
 			line = attemptToHighlight(line, "^%-%-%[%[.-%]%]", colors[theme.comment]) or
 				attemptToHighlight(line, "^%-%-.*", colors[theme.comment]) or
@@ -1268,7 +1460,9 @@ local function writeHighlighted(line)
 				attemptToHighlight(line, "^\'.*[^\\]\'", colors[theme.string]) or
 				attemptToHighlight(line, "^%[%[.-%]%]", colors[theme.string]) or
 				attemptToHighlight(line, "^[%w_]+", function(match)
-					if keywords[match] then return colors[theme[keywords[match]]] end
+					if curLanguage.keywords[match] then
+						return colors[theme[curLanguage.keywords[match]]]
+					end
 					return colors[theme.textColor]
 				end) or
 				attemptToHighlight(line, "^[^%w_]", colors[theme.textColor])
@@ -1439,7 +1633,6 @@ local function edit(path)
 	-- Enable brainfuck
 	if lines[1] == "-- Syntax: Brainfuck" then
 		curLanguage = languages.brainfuck
-		highlightSyntax = false
 	end
 
 	-- Clocks
