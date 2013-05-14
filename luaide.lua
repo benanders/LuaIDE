@@ -627,10 +627,15 @@ languages.lua.parseError = function(e)
 	local ret = {filename = "unknown", line = -1, display = "Unknown!", err = ""}
 	if e and e ~= "" then
 		ret.err = e
-		ret.filename = e:sub(1, e:find(":") - 1)
-		e = e:sub(e:find(":") + 1) .. "" -- The "" is needed to circumvent a CC bug
-		ret.line = e:sub(1, e:find(":") - 1)
-		e = e:sub(e:find(":") + 2):gsub("^%s*(.-)%s*$", "%1") .. ""
+		if e:find(":") then
+			ret.filename = e:sub(1, e:find(":") - 1):gsub("^%s*(.-)%s*$", "%1")
+			-- The "" is needed to circumvent a CC bug
+			e = (e:sub(e:find(":") + 1) .. ""):gsub("^%s*(.-)%s*$", "%1")
+			if ret:find(":") then
+				ret.line = e:sub(1, e:find(":") - 1)
+				e = e:sub(e:find(":") + 2):gsub("^%s*(.-)%s*$", "%1") .. ""
+			end
+		end
 		ret.display = e:sub(1, 1):upper() .. e:sub(2, -1) .. "."
 	end
 
@@ -1209,6 +1214,9 @@ end
 
 local menu = {
 	[1] = {"File",
+--		"About",
+--		"Settings",
+--		"",
 		"New File  ^+N",
 		"Open File ^+O",
 		"Save File ^+S",
@@ -1246,8 +1254,6 @@ local shortcuts = {
 	["ctrl x"] = "Cut Line   ^+X",
 	["ctrl c"] = "Copy Line  ^+C",
 	["ctrl v"] = "Paste Line ^+V",
-	["0"] = "Delete Line",
-	["0"] = "Clear Line",
 
 	-- Functions
 	["ctrl g"] = "Go To Line    ^+G",
@@ -1263,6 +1269,8 @@ local shortcuts = {
 
 local menuFunctions = {
 	-- File
+--	["About"] = function() end,
+--	["Settings"] = function() end,
 	["New File  ^+N"] = function(path, lines) saveFile(path, lines) return "new" end,
 	["Open File ^+O"] = function(path, lines) saveFile(path, lines) return "open" end,
 	["Save File ^+S"] = function(path, lines) saveFile(path, lines) end,
