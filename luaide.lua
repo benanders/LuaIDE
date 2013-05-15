@@ -631,7 +631,7 @@ languages.lua.parseError = function(e)
 			ret.filename = e:sub(1, e:find(":") - 1):gsub("^%s*(.-)%s*$", "%1")
 			-- The "" is needed to circumvent a CC bug
 			e = (e:sub(e:find(":") + 1) .. ""):gsub("^%s*(.-)%s*$", "%1")
-			if ret:find(":") then
+			if e:find(":") then
 				ret.line = e:sub(1, e:find(":") - 1)
 				e = e:sub(e:find(":") + 2):gsub("^%s*(.-)%s*$", "%1") .. ""
 			end
