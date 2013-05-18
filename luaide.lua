@@ -13,7 +13,6 @@ local args = {...}
 
 -- Editing
 local w, h = term.getSize()
-local liveErrors = true
 local tabWidth = 2
 
 local autosaveInterval = 20
@@ -1885,12 +1884,11 @@ local function edit(path)
 		if os.clock() - liveErrorClock > 1 then
 			local prevLiveErr = liveErr
 			liveErr = curLanguage.parseError(nil)
-			if liveErrors then
-				local code = ""
-				for _, v in pairs(lines) do code = code .. v .. "\n" end
-				liveErr = curLanguage.getCompilerErrors(code)
-				liveErr.line = math.min(liveErr.line - 2, #lines)
-			end
+			local code = ""
+			for _, v in pairs(lines) do code = code .. v .. "\n" end
+
+			liveErr = curLanguage.getCompilerErrors(code)
+			liveErr.line = math.min(liveErr.line - 2, #lines)
 			if liveErr ~= prevLiveErr then draw() end
 			liveErrorClock = os.clock()
 		end
@@ -2094,12 +2092,12 @@ local function settings()
 	title("LuaIDE - Settings")
 
 	local opt = prompt({{"Change Theme", w/2 - 17, 8}, {"Check for Updates", w/2 - 22, 13},
-		{(liveErrors and "Disable" or "Enable") .. " Live Errors", w/2 + 2, 8}, {"Return to Menu", 
-		w/2 + 2, 13, bg = colors[theme.err], highlight = colors[theme.errHighlight]}}, "vertical", true)
+		{"Return to Menu", w/2 + 2, 8}, {"Exit IDE", w/2 + 2, 13, bg = colors[theme.err], 
+		highlight = colors[theme.errHighlight]}}, "vertical", true)
 	if opt == "Change Theme" then return changeTheme()
 	elseif opt == "Check for Updates" then return update()
-	elseif opt == "Disable Live Errors" then return "menu"
-	elseif opt == "Return to Menu" then return "menu" end
+	elseif opt == "Return to Menu" then return "menu"
+	elseif opt == "Exit IDE" then return "exit" end
 end
 
 
