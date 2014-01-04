@@ -1,4 +1,3 @@
-
 --  
 --  Lua IDE
 --  Made by GravityScore
@@ -33,7 +32,7 @@ local curLanguage = {}
 local event_distract = "luaide_distractionEvent"
 
 -- Locations
-local updateURL = "https://raw.github.com/GravityScore/LuaIDE/master/computercraft/ide.lua"
+local updateURL = "https://raw.github.com/GravityScore/LuaIDE/master/luaide.lua"
 local ideLocation = "/" .. shell.getRunningProgram()
 local themeLocation = "/.LuaIDE-Theme"
 
