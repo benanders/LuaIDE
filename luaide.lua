@@ -5,39 +5,58 @@
 --  
 
 
---  -------- Variables
 
--- Version
-local version = "1.0"
-local args = {...}
 
--- Editing
+--    Variables
+
+local version = "2.0"
+local arguments = {...}
+
+
 local w, h = term.getSize()
 local tabWidth = 2
+
 
 local autosaveInterval = 20
 local allowEditorEvent = true
 local keyboardShortcutTimeout = 0.4
 
--- Clipboard
+
 local clipboard = nil
 
--- Theme
-local theme = {}
 
--- Language
+local theme = {
+	background = colors.gray,
+	titleBar = colors.lightGray,
+
+	top = colors.lightBlue,
+	bottom = colors.cyan,
+
+	button = colors.cyan,
+	buttonHighlighted = colors.lightBlue,
+
+	dangerButton = colors.red,
+	dangerButtonHighlighted = colors.pink,
+
+	text = colors.white,
+	folder = colors.lime,
+	readOnly = colors.red,
+}
+
+
 local languages = {}
-local curLanguage = {}
+local currentLanguage = {}
 
--- Events
-local event_distract = "luaide_distractionEvent"
 
--- Locations
 local updateURL = "https://raw.github.com/GravityScore/LuaIDE/master/computercraft/ide.lua"
 local ideLocation = "/" .. shell.getRunningProgram()
-local themeLocation = "/.LuaIDE-Theme"
+local themeLocation = "/.luaide_theme"
 
-local function isAdvanced() return term.isColor and term.isColor() end
+local function isAdvanced()
+	return term.isColor and term.isColor()
+end
+
+
 
 
 --  -------- Utilities
@@ -817,7 +836,7 @@ languages.none.run = function(path) end
 
 
 -- Load language
-curLanguage = languages.lua
+currentLanguage = languages.lua
 
 
 --  -------- Run GUI
@@ -826,7 +845,7 @@ local function viewErrorHelp(e)
 	title("LuaIDE - Error Help")
 
 	local tips = nil
-	for k, v in pairs(curLanguage.errors) do
+	for k, v in pairs(currentLanguage.errors) do
 		if e.display:find(k) then tips = v break end
 	end
 
@@ -850,7 +869,7 @@ local function viewErrorHelp(e)
 		term.setBackgroundColor(colors[theme.prompt])
 		for i, v in ipairs(tips) do
 			term.setCursorPos(7, i + 10)
-			term.write("- " .. curLanguage.helpTips[v])
+			term.write("- " .. currentLanguage.helpTips[v])
 		end
 	else
 		term.setBackgroundColor(colors[theme.err])
@@ -863,9 +882,9 @@ local function viewErrorHelp(e)
 		term.setCursorPos(6, 12)
 		term.write("you could see if it was any of these:")
 
-		for i, v in ipairs(curLanguage.defaultHelpTips) do
+		for i, v in ipairs(currentLanguage.defaultHelpTips) do
 			term.setCursorPos(7, i + 12)
-			term.write("- " .. curLanguage.helpTips[v])
+			term.write("- " .. currentLanguage.helpTips[v])
 		end
 	end
 
@@ -886,7 +905,7 @@ local function run(path, lines, useArgs)
 	term.setTextColor(colors.white)
 	term.clear()
 	term.setCursorPos(1, 1)
-	local err = curLanguage.run(path, ar)
+	local err = currentLanguage.run(path, ar)
 
 	term.setBackgroundColor(colors.black)
 	print("\n")
@@ -906,7 +925,7 @@ local function run(path, lines, useArgs)
 	os.pullEvent()
 
 	if err then
-		if curLanguage == languages.lua and err:find("]") then
+		if currentLanguage == languages.lua and err:find("]") then
 			err = fs.getName(path) .. err:sub(err:find("]", 1, true) + 1, -1)
 		end
 
@@ -927,7 +946,7 @@ local function run(path, lines, useArgs)
 				term.write(string.rep(" ", w - 5))
 			end
 
-			local formattedErr = curLanguage.parseError(err)
+			local formattedErr = currentLanguage.parseError(err)
 			term.setCursorPos(4, 11)
 			term.write("Line: " .. formattedErr.line)
 			term.setCursorPos(4, 12)
@@ -1014,9 +1033,9 @@ local function setsyntax()
 			term.clearLine()
 			term.write(opts[sel])
 		elseif but == 28 then
-			if sel == 1 then curLanguage = languages.lua
-			elseif sel == 2 then curLanguage = languages.brainfuck
-			elseif sel == 3 then curLanguage = languages.none end
+			if sel == 1 then currentLanguage = languages.lua
+			elseif sel == 2 then currentLanguage = languages.brainfuck
+			elseif sel == 3 then currentLanguage = languages.none end
 			term.setCursorBlink(true)
 			return
 		end
@@ -1152,9 +1171,9 @@ end
 
 local function reindent(contents)
 	local err = nil
-	if curLanguage ~= languages.lua then
+	if currentLanguage ~= languages.lua then
 		err = "Cannot indent languages other than Lua!"
-	elseif curLanguage.getCompilerErrors(table.concat(contents, "\n")).line ~= -1 then
+	elseif currentLanguage.getCompilerErrors(table.concat(contents, "\n")).line ~= -1 then
 		err = "Cannot indent a program with errors!"
 	end
 
@@ -1293,7 +1312,7 @@ local menuFunctions = {
 	end,
 	["Set Syntax    ^+E"] = function(path, lines)
 		setsyntax()
-		if curLanguage == languages.brainfuck and lines[1] ~= "-- Syntax: Brainfuck" then
+		if currentLanguage == languages.brainfuck and lines[1] ~= "-- Syntax: Brainfuck" then
 			table.insert(lines, 1, "-- Syntax: Brainfuck")
 			return nil, lines
 		end
@@ -1443,7 +1462,7 @@ local edw, edh = 0, h - 1
 local offx, offy = 0, 1
 local scrollx, scrolly = 0, 0
 local lines = {}
-local liveErr = curLanguage.parseError(nil)
+local liveErr = currentLanguage.parseError(nil)
 local displayCode = true
 local lastEventClock = os.clock()
 
@@ -1460,7 +1479,7 @@ local function attemptToHighlight(line, regex, col)
 end
 
 local function writeHighlighted(line)
-	if curLanguage == languages.lua then
+	if currentLanguage == languages.lua then
 		while line:len() > 0 do	
 			line = attemptToHighlight(line, "^%-%-%[%[.-%]%]", colors[theme.comment]) or
 				attemptToHighlight(line, "^%-%-.*", colors[theme.comment]) or
@@ -1468,8 +1487,8 @@ local function writeHighlighted(line)
 				attemptToHighlight(line, "^\'.*[^\\]\'", colors[theme.string]) or
 				attemptToHighlight(line, "^%[%[.-%]%]", colors[theme.string]) or
 				attemptToHighlight(line, "^[%w_]+", function(match)
-					if curLanguage.keywords[match] then
-						return colors[theme[curLanguage.keywords[match]]]
+					if currentLanguage.keywords[match] then
+						return colors[theme[currentLanguage.keywords[match]]]
 					end
 					return colors[theme.textColor]
 				end) or
@@ -1640,7 +1659,7 @@ local function edit(path)
 
 	-- Enable brainfuck
 	if lines[1] == "-- Syntax: Brainfuck" then
-		curLanguage = languages.brainfuck
+		currentLanguage = languages.brainfuck
 	end
 
 	-- Clocks
@@ -1884,11 +1903,11 @@ local function edit(path)
 		-- Errors
 		if os.clock() - liveErrorClock > 1 then
 			local prevLiveErr = liveErr
-			liveErr = curLanguage.parseError(nil)
+			liveErr = currentLanguage.parseError(nil)
 			local code = ""
 			for _, v in pairs(lines) do code = code .. v .. "\n" end
 
-			liveErr = curLanguage.getCompilerErrors(code)
+			liveErr = currentLanguage.getCompilerErrors(code)
 			liveErr.line = math.min(liveErr.line - 2, #lines)
 			if liveErr ~= prevLiveErr then draw() end
 			liveErrorClock = os.clock()
@@ -2152,7 +2171,7 @@ elseif not theme then theme = normalTheme end
 
 -- Run
 local _, err = pcall(function()
-	parallel.waitForAny(function() main(args) end, monitorKeyboardShortcuts)
+	parallel.waitForAny(function() main(arguments) end, monitorKeyboardShortcuts)
 end)
 
 -- Catch errors
