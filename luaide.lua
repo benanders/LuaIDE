@@ -9,7 +9,7 @@
 
 --    Variables
 
-local version = "2.0"
+local version = "1.1"
 local arguments = {...}
 
 
@@ -921,7 +921,7 @@ local function run(path, lines, useArgs)
 	end
 
 	-- To prevent key from showing up in editor
-	os.queueEvent(event_distract)
+	os.queueEvent("")
 	os.pullEvent()
 
 	if err then
@@ -977,7 +977,7 @@ local function run(path, lines, useArgs)
 				viewErrorHelp(formattedErr)
 			elseif opt == "Go To Line" then
 				-- To prevent key from showing up in editor
-				os.queueEvent(event_distract)
+				os.queueEvent("")
 				os.pullEvent()
 
 				return "go to", tonumber(formattedErr.line)
@@ -2211,7 +2211,7 @@ if err and not err:find("Terminated") then
 	end
 
 	-- Prevent key from being shown
-	os.queueEvent(event_distract)
+	os.queueEvent("")
 	os.pullEvent()
 end
 
