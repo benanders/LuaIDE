@@ -1,1877 +1,1061 @@
 
---  
---  Lua IDE
---  Made by GravityScore
---  
-
+--
+--  LuaIDE
+--  Copyright GravityScore 2014
+--  20 April 2014
+--
 
 
 
 --    Variables
 
-local version = "2.0"
-local args = {...}
 
+local version = "2.0"
 
 local w, h = term.getSize()
-local tabWidth = 2
-
-local autosaveInterval = 20
-local allowEditorEvent = true
-local keyboardShortcutTimeout = 0.4
-
-
-local clipboard = nil
-
-local languages = {}
-local currentLanguage = {}
-
-
-local updateURL = "https://raw.github.com/GravityScore/LuaIDE/master/computercraft/ide.lua"
-local ideLocation = "/" .. shell.getRunningProgram()
-local themeLocation = "/.luaide-theme"
-
 
 local theme = {
-	background = colors.gray,
-	titleBar = colors.lightGray,
+	["background"] = colors.gray,
+	["highlightBackground"] = colors.lightGray,
 
-	top = colors.lightBlue,
-	bottom = colors.cyan,
+	["accent"] = colors.lightBlue,
+	["subtle"] = colors.cyan,
 
-	button = colors.cyan,
-	buttonHighlighted = colors.lightBlue,
+	["text"] = colors.white,
+	["hiddenText"] = colors.lightGray,
 
-	editor_lineHighlight = colors.lightBlue,
-	editor_errorLineHighlight = colors.pink,
-
-	dangerButton = colors.red,
-	dangerButtonHighlighted = colors.pink,
-
-	text = colors.white,
-	folder = colors.lime,
-	readOnly = colors.red,
+	["error"] = colors.red,
 }
-
 
 
 
 --    Utilities
 
 
-local isAdvanced = function()
-	return term.isColor and term.isColor()
-end
-
-
-
-local fill = function(x, y, w, h, text)
-	if not text then
-		text = " "
-	end
-
-	for a = y, y + h - 1 do
-		term.setCursorPos(x, a)
-		term.write(string.rep(text, w))
-	end
-end
-
-
-local clear = function()
-	term.setBackgroundColor(theme.background)
-	term.setTextColor(theme.text)
+local function clear(bg, fg)
+	term.setTextColor(fg)
+	term.setBackgroundColor(bg)
 	term.clear()
+	term.setCursorPos(1, 1)
 end
 
 
-local title = function(text)
-	term.setBackgroundColor(theme.titleBar)
-	fill(1, 2, w, 3)
-	term.setCursorPos(2, 3)
-	term.write(text)
-end
-
-
-local top = function(...)
-	local text = {...}
-	local width = 0
-	for i, closing in pairs(text) do
-		width = width < closing:len() and closing:len() or width
-	end
-
-	term.setBackgroundColor(theme.top)
-	fill(1, 6, width + 2, #text + 2)
-	for i, closing in pairs(text) do
-		term.setCursorPos(2, 6 + i)
-		term.write(closing)
-	end
-	print("")
-	print("")
-	print("")
-end
-
-
-local bottom = function(...)
-	local text = {...}
-	local width = 0
-	for i, closing in pairs(text) do
-		width = width < closing:len() and closing:len() or width
-	end
-
-	local cx, cy = term.getCursorPos()
-	term.setBackgroundColor(theme.bottom)
-	fill(w - width - 1, cy, width + 2, #text + 2)
-	for i, closing in pairs(text) do
-		term.setCursorPos(w - closing:len(), cy + i)
-		term.write(closing)
+local function fill(x, y, width, height, bg)
+	term.setBackgroundColor(bg)
+	for i = y, y + height - 1 do
+		term.setCursorPos(x, i)
+		term.write(string.rep(" ", width))
 	end
 end
 
 
-local center = function(text)
+local function center(text)
 	local x, y = term.getCursorPos()
-	term.setCursorPos(math.floor(w / 2 - text:len() / 2) + (text:len() % 2 == 0 and 1 or 0), y)
+	local w, h = term.getSize()
+	local offset = (text:len() % 2 == 0 and 1 or 0)
+	term.setCursorPos(math.floor(w / 2 - text:len() / 2) + offset, y)
 	term.write(text)
 	term.setCursorPos(1, y + 1)
 end
 
 
+local function centerSplit(text, width)
+	local words = {}
+	for word in text:gmatch("[^ \t]+") do
+		table.insert(words, word)
+	end
 
-local buttonGrid = function(buttons)
-	term.setTextColor(theme.text)
-	if #buttons == 2 then
-		local y = math.floor(h / 2) - 1
+	local lines = {""}
+	while lines[#lines]:len() < width do
+		lines[#lines] = lines[#lines] .. words[1] .. " "
+		table.remove(words, 1)
 
-		buttons[1].x = math.floor(w / 2) - buttons[1].text:len() - 3
-		buttons[1].y = y
-
-		buttons[2].x = math.floor(w / 2) + 1
-		buttons[2].y = y
-
-		for i = 1, #buttons do
-			term.setBackgroundColor(theme[buttons[i].id .. (buttons[i].selected and "Highlighted" or "")])
-			fill(buttons[i].x, buttons[i].y, buttons[i].text:len() + 2, 3)
-			term.setCursorPos(buttons[i].x + 1, buttons[i].y + 1)
-			term.write(buttons[i].text)
+		if #words == 0 then
+			break
 		end
-	elseif #buttons == 3 then
 
-	elseif #buttons == 4 then
-		local y1 = math.floor(h / 2) - 2
-		local y2 = math.floor(h / 2) + 3
-
-		buttons[1].x = math.floor(w / 2) - buttons[1].text:len() - 3
-		buttons[1].y = y1
-
-		buttons[2].x = math.floor(w / 2) + 1
-		buttons[2].y = y1
-
-		buttons[3].x = math.floor(w / 2) - buttons[3].text:len() - 3
-		buttons[3].y = y2
-
-		buttons[4].x = math.floor(w / 2) + 1
-		buttons[4].y = y2
-
-		for i = 1, #buttons do
-			buttons[i].w = buttons[i].text:len() + 2
-			buttons[i].h = 3
-
-			term.setBackgroundColor(theme[buttons[i].id .. (buttons[i].selected and "Highlighted" or "")])
-			fill(buttons[i].x, buttons[i].y, buttons[i].text:len() + 2, 3)
-			term.setCursorPos(buttons[i].x + 1, buttons[i].y + 1)
-			term.write(buttons[i].text)
+		if lines[#lines]:len() + words[1]:len() >= width then
+			table.insert(lines, "")
 		end
+	end
+
+	for _, line in pairs(lines) do
+		center(line)
 	end
 end
 
 
+local function localiseEvent(event, startY, startX)
+	local localised = event
 
-
---    Modified Read
-
-
-local modifiedRead = function(properties)
-	-- Properties:
-	-- - replaceCharacter
-	-- - displayLength
-	-- - maxLength
-	-- - onEvent
-	-- - startingText
-
-	local text = ""
-	local startX, startY = term.getCursorPos()
-	local pos = 0
-
-	if not properties then
-		properties = {}
-	end
-	if properties.displayLength then
-		properties.displayLength = math.min(properties.displayLength, w - 2)
-	end
-	if properties.startingText then
-		text = properties.startingText
-		pos = text:len()
-	end
-
-	local edit_draw = function(replaceCharacter)
-		local scroll = 0
-		if properties.displayLength and pos > properties.displayLength then 
-			scroll = pos - properties.displayLength
+	if localised[1] == "mouse_click" then
+		if startY then
+			localised[4] = localised[4] - startY + 1
 		end
 
-		local repl = replaceCharacter or properties.replaceCharacter
-		term.setTextColor(theme.text)
-		term.setCursorPos(startX, startY)
-		if repl then
-			term.write(string.rep(repl:sub(1, 1), text:len() - scroll))
-		else
-			term.write(text:sub(scroll + 1))
-		end
-
-		term.setCursorPos(startX + pos - scroll, startY)
-	end
-
-	term.setCursorBlink(true)
-	edit_draw()
-	while true do
-		local event, key, x, y, param4, param5 = os.pullEvent()
-
-		if properties.onEvent then
-			-- Actions:
-			-- - exit (bool)
-			-- - text
-
-			term.setCursorBlink(false)
-			local action = properties.onEvent(text, event, key, x, y, param4, param5)
-			if action then
-				if action.text then
-					edit_draw(" ")
-					text = action.text
-					if text then
-						pos = text:len()
-					end
-				end if action.exit then
-					break
-				end
-			end
-			edit_draw()
-		end
-
-		term.setCursorBlink(true)
-		if event == "char" then
-			local canType = true
-			if properties.maxLength and text:len() >= properties.maxLength then
-				canType = false
-			end
-
-			if canType then
-				text = text:sub(1, pos) .. key .. text:sub(pos + 1, -1)
-				pos = pos + 1
-				edit_draw()
-			end
-		elseif event == "key" then
-			if key == keys.enter then
-				break
-			elseif key == keys.left and pos > 0 then
-				pos = pos - 1
-				edit_draw()
-			elseif key == keys.right and pos < text:len() then
-				pos = pos + 1
-				edit_draw()
-			elseif key == keys.backspace and pos > 0 then
-				edit_draw(" ")
-				text = text:sub(1, pos - 1) .. text:sub(pos + 1, -1)
-				pos = pos - 1
-				edit_draw()
-			elseif key == keys.delete and pos < text:len() then
-				edit_draw(" ")
-				text = text:sub(1, pos) .. text:sub(pos + 2, -1)
-				edit_draw()
-			elseif key == keys.home then
-				pos = 0
-				edit_draw()
-			elseif key == keys["end"] then
-				pos = text:len()
-				edit_draw()
-			end
-		elseif event == "mouse_click" then
-			local scroll = 0
-			if properties.displayLength and pos > properties.displayLength then 
-				scroll = pos - properties.displayLength
-			end
-
-			if y == startY and x >= startX and x <= math.min(startX + text:len(), startX + (properties.displayLength or 10000)) then
-				pos = x - startX + scroll
-				edit_draw()
-			elseif y == startY then
-				if x < startX then
-					pos = scroll
-					edit_draw()
-				elseif x > math.min(startX + text:len(), startX + (properties.displayLength or 10000)) then
-					pos = text:len()
-					edit_draw()
-				end
-			end
+		if startX then
+			localised[3] = localised[3] - startX + 1
 		end
 	end
 
-	term.setCursorBlink(false)
-	print("")
-	return text
+	return localised
 end
-
-
-
-
---    Updating
-
-
-local update_download = function(url, path)
-
-end
-
-
-local update = function()
-
-end
-
-
-
-
---    Menu
-
-
-manageButtonGrid = function(buttons)
-	buttonGrid(buttons)
-
-	while true do
-		local event, key, x, y = os.pullEvent()
-		if event == "key" then
-			if key == keys.enter then
-				return buttons[selection].action
-			elseif key == keys.up then
-				if selection > math.floor(#buttons / 2) then
-					buttons[selection].selected = false
-					selection = selection - 2
-					buttons[selection].selected = true
-				end
-			elseif key == keys.down then
-				if selection <= math.floor(#buttons / 2) then
-					buttons[selection].selected = false
-					selection = selection + 2
-					buttons[selection].selected = true
-				end
-			elseif key == keys.left then
-				if selection > 0 then
-					buttons[selection].selected = false
-					selection = selection - 1
-					buttons[selection].selected = true
-				end
-			elseif key == keys.right then
-				if selection < #buttons then
-					buttons[selection].selected = false
-					selection = selection + 1
-					buttons[selection].selected = true
-				end
-			end
-
-			buttonGrid(buttons)
-		elseif event == "mouse_click" then
-			for _, button in pairs(buttons) do
-				if x >= button.x and y >= button.y and x < button.x + button.w and y < button.y + button.h then
-					return button.action
-				end
-			end
-		end
-	end
-end
-
-
-menu_items = function()
-	local selection = 1
-	local buttons = {
-		{text = "New File", id = "button", selected = true, action = "new"},
-		{text = "Open File", id = "button", selected = false, action = "open"},
-		{text = "Settings", id = "button", selected = false, action = "settings"},
-		{text = "Exit", id = "dangerButton", selected = false, action = "exit"},
-	}
-
-	clear()
-	title("Lua IDE : Welcome")
-	return manageButtonGrid(buttons)
-end
-
-
-
-
---    Settings
-
-
-settings = function()
-
-end
-
 
 
 
 --    Files
 
 
-currentDirectory = ""
-fileScroll = 0
+local File = {}
+File.__index = File
 
 
-fileSelect_draw = function()
-	term.setBackgroundColor(theme.top)
-	fill(2, 9, w - 2, h - 9)
+function File.new(path)
+	local self = setmetatable({}, File)
+	self:setup(path)
 
-	local files = fs.list(currentDirectory)
-	if currentDirectory ~= "" then
-		table.insert(files, 1, "Back [..]")
-	end
-
-	for i = fileScroll + 1, h - 10 + fileScroll do
-		local name = files[i]
-		if name then
-			term.setCursorPos(3, (i - fileScroll) + 8)
-			local path = currentDirectory .. "/" .. name
-			if fs.isReadOnly(path) and name ~= "Back [..]" then
-				term.setTextColor(theme.readOnly)
-				term.write(name .. (fs.isDir(path) and "/" or ""))
-			elseif fs.isDir(path) or name == "Back [..]" then
-				term.setTextColor(theme.folder)
-				term.write(name .. (name == "Back [..]" and "" or "/"))
-			else
-				term.setTextColor(theme.text)
-				term.write(name)
-			end
-			term.setBackgroundColor(theme.top)
-		end
-	end
+	return self
 end
 
 
-fileSelect_onEvent = function(text, event, key, x, y)
-	local files = fs.list(currentDirectory)
-	if currentDirectory ~= "" then
-		table.insert(files, 1, "Back [..]")
-	end
-
-	edit_draw()
-	if event == "key" then
-		if key == keys.up and fileScroll > 0 then
-			fileScroll = fileScroll - 1
-			edit_draw()
-		elseif key == keys.down and fileScroll + (h - 10) < #files then
-			fileScroll = fileScroll + 1
-			edit_draw()
-		elseif key == keys.leftCtrl or key == keys.rightCtrl then
-			return {text = nil, exit = true}
-		end
-
-	elseif event == "mouse_click" then
-		if x >= 3 and x <= w - 4 and y >= 9 and y <= h - 2 then
-			local selection = y - 8 + fileScroll
-			local name = files[selection]
-
-			if name == "Back [..]" and currentDirectory ~= "" then
-				currentDirectory = currentDirectory:sub(1, currentDirectory:find(fs.getName(currentDirectory)) - 2)
-				fileScroll = 0
-				edit_draw()
-				return {text = currentDirectory .. "/"}
-			elseif fs.isDir(currentDirectory .. "/" .. name) then
-				currentDirectory = currentDirectory .. "/" .. name
-				fileScroll = 0
-				edit_draw()
-				return {text = currentDirectory .. "/"}
-			elseif fileTypes:find("open") then
-				return {text = currentDirectory .. "/" .. name, exit = true}
-			end
-		end
-
-	elseif event == "mouse_fileScroll" then
-		if key > 0 and fileScroll + (h - 10) < #files then
-			fileScroll = fileScroll + 1
-		elseif key < 0 and fileScroll > 0 then
-			fileScroll = fileScroll - 1
-		end
-	end
+function File:setup(path)
+	self.path = path
 end
 
 
-fileSelect_main = function(selectType, callback)
-	edit_draw()
-	term.setBackgroundColor(theme.top)
-	fill(2, 6, w - 2, 3)
-	term.setCursorPos(3, 7)
-	term.write("Path: ")
-
-	if selectType:find("new") then
-		local path = modifiedRead({startingText = "/", displayLength = w - 4, onEvent = file.select.onEvent})
-		if path:sub(1, 1) ~= "/" then
-			path = "/" .. path
-		end
-
-		return path
-
-	elseif selectType:find("open") then
-		local text = "/"
-
-		term.setTextColor(theme.text)
-		term.setCursorPos(9, 7)
-		term.write(text)
-
-		while true do
-			local event, key, x, y = os.pullEvent()
-			local action = onEvent(text, event, key, x, y)
-
-			if action and action.text then
-				text = action.text
-
-				if text then
-					term.setTextColor(theme.text)
-					term.setCursorPos(9, 7)
-					term.write(string.rep(" ", w - 11))
-					term.setCursorPos(9, 7)
-					term.write(text)
-				end
-			end
-
-			if action and action.exit then
-				return text
-			end
-		end
-	end
+function File:exists()
+	return fs.exists(self.path) and not fs.isDir(self.path)
 end
 
 
-
-file_newFile = function()
-	clear()
-	title("Lua IDE : New File")
-	local path = selectFile("new")
-	if not path then
-		return "menu"
-	end
-
-	return "edit", path
-end
-
-
-file_openFile = function()
-	clear()
-	title("Lua IDE : Open File")
-	local path = selectFile("open")
-	if not path then
-		return "menu"
-	end
-
-	return "edit", path
-end
-
-
-
-
---    Languages
-
-
-languages.lua = {}
-languages.brainfuck = {}
-languages.none = {}
-
-
-languages.lua.keywords = {
-	["and"] = "conditional",
-	["break"] = "conditional",
-	["do"] = "conditional",
-	["else"] = "conditional",
-	["elseif"] = "conditional",
-	["end"] = "conditional",
-	["for"] = "conditional",
-	["function"] = "conditional",
-	["if"] = "conditional",
-	["in"] = "conditional",
-	["local"] = "conditional",
-	["not"] = "conditional",
-	["or"] = "conditional",
-	["repeat"] = "conditional",
-	["return"] = "conditional",
-	["then"] = "conditional",
-	["until"] = "conditional",
-	["while"] = "conditional",
-
-	["true"] = "constant",
-	["false"] = "constant",
-	["nil"] = "constant",
-
-	["print"] = "function",
-	["write"] = "function",
-	["sleep"] = "function",
-	["pairs"] = "function",
-	["ipairs"] = "function",
-	["loadstring"] = "function",
-	["loadfile"] = "function",
-	["dofile"] = "function",
-	["rawset"] = "function",
-	["rawget"] = "function",
-	["setfenclosing"] = "function",
-	["getfenclosing"] = "function",
-}
-
-
-languages.lua.parseError = function(err)
-	local parsedErr = {
-		filename = "unknown",
-		line = -1,
-		display = "Unknown!",
-		err = ""
-	}
-
-	if err and err ~= "" then
-		parsedErr.err = err
-		if err:find(":") then
-			parsedErr.filename = err:sub(1, err:find(":") - 1):gsub("^%s*(.-)%s*$", "%1")
-
-			err = (err:sub(err:find(":") + 1) .. ""):gsub("^%s*(.-)%s*$", "%1") .. ""
-			if err:find(":") then
-				parsedErr.line = err:sub(1, err:find(":") - 1)
-				if tonumber(parsedError.line) then
-					parsedError.line = tonumber(parsedError.line)
-				end
-
-				err = err:sub(err:find(":") + 2):gsub("^%s*(.-)%s*$", "%1") .. ""
-			end
-		end
-
-		parsedErr.display = err:sub(1, 1):upper() .. err:sub(2, -1) .. "."
-	end
-
-	return parsedErr
-end
-
-
-languages.lua.getCompilerErrors = function(code)
-	local _, err = loadstring(code)
-	if err then
-		local a = err:find("]", 1, true)
-		if a then
-			err = "string" .. err:sub(a + 1, -1)
-		end
-
-		return languages.lua.parseError(err)
-	else
-		return languages.lua.parseError(nil)
-	end
-end
-
-
-languages.lua.run = function(path, arguments)
-	local fn, err = loadfile(path)
-	setfenclosing(fn, getfenclosing())
-	if not err then
-		_, err = pcall(function() fn(unpack(arguments)) end)
-	end
-
-	return err
-end
-
-
-
-
-languages.brainfuck.keywords = {}
-
-
-languages.brainfuck.parseError = function(err)
-	local parsedError = {filename = "unknown", line = -1, display = "Unknown!", err = ""}
-	if err and err ~= "" then
-		parsedError.err = err
-		parsedError.line = err:sub(1, err:find(":") - 1)
-		if tonumber(parsedError.line) then
-			parsedError.line = tonumber(parsedError.line)
-		end
-
-		err = err:sub(err:find(":") + 2):gsub("^%s*(.-)%s*$", "%1") .. ""
-
-		parsedError.display = err:sub(1, 1):upper() .. err:sub(2, -1) .. "."
-	end
-
-	return parsedError
-end
-
-
-languages.brainfuck.mapLoops = function(code)
-	local loopLocations = {}
-	local loc = 1
-	local line = 1
-
-	for let in string.gmatch(code, ".") do
-		if let == "[" then
-			loopLocations[loc] = true
-		elseif let == "]" then
-			local found = false
-			for i = loc, 1, -1 do 
-				if loopLocations[i] == true then
-					loopLocations[i] = loc
-					found = true
-				end
-			end
-
-			if not found then
-				return line .. ": No matching '['"
-			end
-		end
-
-		if let == "\n" then
-			line = line + 1
-		end
-		loc = loc + 1
-	end
-
-	return loopLocations
-end
-
-
-languages.brainfuck.getCompilerErrors = function(code)
-	local a = languages.brainfuck.mapLoops(code)
-	if type(a) == "string" then
-		return languages.brainfuck.parseError(a)
-	else
-		return languages.brainfuck.parseError(nil)
-	end
-end
-
-
-languages.brainfuck.run = function(path)
-	local f = io.open(path, "r")
-	local content = f:read("*a")
-	f:close()
-
-	local dataCells = {}
-	local dataPointer = 1
-	local instructionPointer = 1
-
-	local loopLocations = languages.brainfuck.mapLoops(content)
-	if type(loopLocations) == "string" then
-		return loopLocations
-	end
-
-	local cdp = function()
-		if not dataCells[tostring(dataPointer)] then
-			dataCells[tostring(dataPointer)] = 0
-		end
-	end
-
-	while true do
-		local let = content:sub(instructionPointer, instructionPointer)
-
-		if let == ">" then
-			dataPointer = dataPointer + 1
-			cdp()
-		elseif let == "<" then
-			cdp()
-			dataPointer = dataPointer - 1
-			cdp()
-		elseif let == "+" then
-			cdp()
-			dataCells[tostring(dataPointer)] = dataCells[tostring(dataPointer)] + 1
-		elseif let == "-" then
-			cdp()
-			dataCells[tostring(dataPointer)] = dataCells[tostring(dataPointer)] - 1
-		elseif let == "." then
-			cdp()
-			if term.getCursorPos() >= w then print("") end
-			write(string.char(math.max(1, dataCells[tostring(dataPointer)])))
-		elseif let == "," then
-			cdp()
-			term.setCursorBlink(true)
-			local e, key = os.pullEvent("char")
-			term.setCursorBlink(false)
-			dataCells[tostring(dataPointer)] = string.byte(key)
-
-			if term.getCursorPos() >= w then
-				print("")
-			end
-			write(key)
-		elseif let == "/" then
-			cdp()
-			if term.getCursorPos() >= w then print("") end
-			write(dataCells[tostring(dataPointer)])
-		elseif let == "[" and dataCells[tostring(dataPointer)] == 0 then
-			for k, closing in pairs(loopLocations) do
-				if k == instructionPointer then
-					instructionPointer = closing
-				end
-			end
-		elseif let == "]" then
-			for k, closing in pairs(loopLocations) do
-				if closing == instructionPointer then
-					instructionPointer = k - 1
-				end
-			end
-		end
-
-		instructionPointer = instructionPointer + 1
-		if instructionPointer > content:len() then
-			print("")
-			break
-		end
-	end
-end
-
-
-
-
-languages.none.keywords = {}
-
-languages.none.parseError = function(err)
-	return {filename = "", line = -1, display = "", err = ""}
-end
-
-languages.none.getCompilerErrors = function(code)
-	return languages.none.parseError(nil)
-end
-
-languages.none.run = function(path) end
-
-
-
-
---    File Save Management
-
-
-file_save = function(path, lines)
-	local dir = path:sub(1, path:len() - fs.getName(path):len())
-	if not fs.exists(dir) then
-		fs.makeDir(dir)
-	end
-
-	if not fs.isDir(path) and not fs.isReadOnly(path) then
-		local contents = ""
-		for _, closing in pairs(lines) do
-			contents = contents .. closing .. "\n"
-		end
-
-		local f = io.open(path, "w")
-		f:write(a)
-		f:close()
-		return true
-	else
-		return false
-	end
-end
-
-
-file_load = function(path)
-	if not fs.exists(path) then
-		local dir = path:sub(1, path:len() - fs.getName(path):len())
-		if not fs.exists(dir) then
-			fs.makeDir(dir)
-		end
-
-		local f = io.open(path, "w")
-		f:write("")
-		f:close()
-	end
-
-	local lines = {}
-	if fs.exists(path) and not fs.isDir(path) then
-		local f = io.open(path, "r")
-		if f then
-			local line = f:read("*lines")
-			while a do
-				table.insert(lines, line)
-				line = f:read("*lines")
-			end
-			f:close()
-		end
-	else
+function File:get()
+	if not self:exists() then
 		return nil
 	end
 
-	if #lines == 0 then
-		table.insert(lines, "")
+	local f = io.open(self.path, "r")
+	local contents = f:read("*a")
+	f:close()
+
+	return contents
+end
+
+
+function File:getLines()
+	if not self:exists() then
+		return nil
+	end
+
+	local f = io.open(self.path, "r")
+	local lines = {}
+	local line = f:read("*l")
+
+	while line do
+		table.insert(lines, line)
+		line = f:read("*l")
+	end
+
+	if #lines <= 0 then
+		lines = {""}
 	end
 
 	return lines
 end
 
 
-
-
---    Clipboard
-
-
-local clipboard_cut = function(lines, y)
-	clipboard = lines[y]
-	table.remove(lines, y)
-	return lines
+function File:saveLines(lines)
+	self:save(table.concat(lines, "\n"))
 end
 
 
-local clipboard_copy = function(lines, y)
-	clipboard = lines[y]
-end
-
-
-local clipboard_paste = function(lines, y)
-	if clipboard then
-		table.insert(lines, y, clipboard)
-	end
-	return lines
-end
-
-
-local removeLine = function(lines, y)
-	table.remove(lines, y)
-	return lines
-end
-
-
-local clearLine = function(lines, y)
-	lines[y] = ""
-	return lines
-end
-
-local setSyntax = function(lines)
-	if currentLanguage == languages.brainfuck and lines[1] ~= "-- Syntax: Brainfuck" then
-		table.insert(lines, 1, "-- Syntax: Brainfuck")
-	end
-
-	return lines
-end
-
-
-
-
---    Reindenting
-
-
-local reindent = function(lines)
-	
-end
-
-
-
-
---    Editor
-
-
-local x = 1
-local y = 1
-local offsetX = 0
-local offsetY = 1
-local scrollX = 0
-local scrollY = 0
-
-local editorWidth = 0
-local editorHeight = h - offsetY
-
-local lines = {}
-
-local autosaveClock = 0
-local scrollClock = 0
-local liveErrorClock = 0
-local hasScrolled = false
-
-local displayErrorCode = false
-local liveError = currentLanguage.parseError(nil)
-
-local liveCompletions = {
-	["("] = ")",
-	["{"] = "}",
-	["["] = "]",
-	["\""] = "\"",
-	["'"] = "'",
-}
-
-local standardsCompletions = {
-	"if%s+.+%s+then%s*$",
-	"for%s+.+%s+do%s*$",
-	"while%s+.+%s+do%s*$",
-	"repeat%s*$",
-	"function%s+[a-zA-Z_0-9]?\(.*\)%s*$",
-	"=%s*function%s*\(.*\)%s*$",
-	"else%s*$",
-	"elseif%s+.+%s+then%s*$"
-}
-
-
-
-
---    Menu
-
-
-local menu_items = {
-	{"File",
-		"About",
-		"Settings",
-		"New File  ^+N",
-		"Open File ^+O",
-		"Save File ^+S",
-		"Close     ^+W",
-		"Print     ^+P",
-		"Quit      ^+Q"
-	}, {"Edit",
-		"Cut Line   ^+X",
-		"Copy Line  ^+C",
-		"Paste Line ^+V",
-		"Delete Line",
-		"Clear Line"
-	}, {"Functions",
-		"Go To Line    ^+G",
-		"Re-Indent     ^+I",
-		"Set Syntax    ^+E",
-		"Start of Line ^+<",
-		"End of Line   ^+>"
-	}, {"Run",
-		"Run Program       ^+R",
-		"Run w/ Args ^+Shift+R"
-	}
-}
-
-
-local menu_shortcuts = {
-	-- File
-	["ctrl n"] = "New File  ^+N",
-	["ctrl o"] = "Open File ^+O",
-	["ctrl s"] = "Save File ^+S",
-	["ctrl w"] = "Close     ^+W",
-	["ctrl p"] = "Print     ^+P",
-	["ctrl q"] = "Quit      ^+Q",
-
-	-- Edit
-	["ctrl x"] = "Cut Line   ^+X",
-	["ctrl c"] = "Copy Line  ^+C",
-	["ctrl v"] = "Paste Line ^+V",
-
-	-- Functions
-	["ctrl g"] = "Go To Line    ^+G",
-	["ctrl i"] = "Re-Indent     ^+I",
-	["ctrl e"] = "Set Syntax    ^+E",
-	["ctrl 203"] = "Start of Line ^+<",
-	["ctrl 205"] = "End of Line   ^+>",
-
-	-- Run
-	["ctrl r"] = "Run Program       ^+R",
-	["ctrl shift r"] = "Run w/ Args ^+Shift+R"
-}
-
-
-local menu_functions = {
-	-- Return Properties
-	-- - action
-	-- - lines
-	-- - cursorY
-
-	-- File
-	["About"] = function() about() end,
-	["Settings"] = function() return {action = "settings"} end,
-	["New File  ^+N"] = function() return {action = "new"} end,
-	["Open File ^+O"] = function() return {action = "open"} end,
-	["Save File ^+S"] = function() end,
-	["Close     ^+W"] = function() return {action = "menu_items"} end,
-	["Print     ^+P"] = function() end,
-	["Quit      ^+Q"] = function() return {action = "exit"} end,
-
-	-- Edit
-	["Cut Line   ^+X"] = function(path, lines, y) return {lines = clipboard_cut(lines, y)} end,
-	["Copy Line  ^+C"] = function(path, lines, y) clipboard_copy(lines, y) end,
-	["Paste Line ^+V"] = function(path, lines, y) return {lines = clipboard_paste(lines, y)} end,
-	["Delete Line"] = function(path, lines, y) return {lines = removeLine(lines, y)} end,
-	["Clear Line"] = function(path, lines, y) return {lines = clearLine(lines, y)} end,
-
-	-- Functions
-	["Go To Line    ^+G"] = function() return {"cursorY" = goto()} end,
-	["Re-Indent     ^+I"] = function(path, lines) return {lines = reindent(lines)} end,
-	["Set Syntax    ^+E"] = function(path, lines) return {lines = setSyntax(lines)} end,
-	["Start of Line ^+<"] = function() os.queueEvent("key", keys.home) end,
-	["End of Line   ^+>"] = function() os.queueEvent("key", keys.end) end,
-
-	-- Run
-	["Run Program       ^+R"] = function(path, lines) run(path, lines, false) end,
-	["Run w/ Args ^+Shift+R"] = function(path, lines) run(path, lines, true) end,
-}
-
-
-
-
---    Editor Setup
-
-
-edit_setup = function(path)
-	lines = loadFile(path)
-	if not lines then
-		return "menu_items"
-	end
-
-	if lines[1] == "-- Syntax: Brainfuck" then
-		currentLanguage = languages.brainfuck
-	end
-
-	x = 1
-	y = 1
-	offsetX = 0
-	offsetY = 1
-	scrollX = 0
-	scrollY = 0
-
-	editorWidth = 0
-	editorHeight = h - offsetY
-
-	autosaveClock = os.clock()
-	scrollClock = os.clock()
-	liveErrorClock = os.clock()
-	hasScrolled = false
-
-	displayErrorCode = false
-	liveError = currentLanguage.parseError(nil)
-
-	edit_draw()
-	term.setCursorPos(x + offsetX, y + offsetY)
-	term.setCursorBlink(true)
-end
-
-
-
-
---    Editor Menu
-
-
-menu_draw = function(open)
-	-- Top row
-	term.setCursorPos(1, 1)
-	term.setTextColor(theme.text)
-	term.setBackgroundColor(theme.backgroundHighlight)
-	term.clearLine()
-
-	-- Main menu items
-	local padding = 3
-	local curX = 0
-	for _, item in pairs(menu_items) do
-		term.setCursorPos(padding + curX, 1)
-		term.write(item[1])
-		curX = curX + item[1]:len() + padding
-	end
-
-	if open then
-		-- Get the main menu item
-		local item = {}
-		local x = 1
-		for _, test in pairs(menu_items) do
-			if open == test[1] then
-				item = test
-				break
-			end
-
-			x = x + test[1]:len() + padding
-		end
-		x = x + 1
-
-		-- Get each item under the main menu item
-		local items = {}
-		for i = 2, #item do
-			table.insert(items, item[i])
-		end
-
-		-- Get the maximum length of these items
-		local width = 1
-		for _, item in pairs(items) do
-			if item:len() + 2 > width then
-				width = item:len() + 2
-			end
-		end
-
-		-- Draw items
-		fill(x, offsetY + 1, width, #items)
-		for i, item in pairs(items) do
-			term.setCursorPos(x + 1, i + offsetY)
-			term.write(item)
-		end
-
-		-- One more row for padding
-		term.setCursorPos(x, #items + 2)
-		term.write(string.rep(" ", width))
-
-		return items, width
-	end
-end
-
-
-menu_trigger = function(cx, cy)
-	-- Determine clicked menu
-	local padding = 3
-	local curX = 0
-	local clicked = nil
-	for _, item in pairs(menu) do
-		if cx >= curX + padding and cx <= curX + item[1]:len() + 2 then
-			clicked = item[1]
-			break
-		end
-
-		curX = curX + item[1]:len() + padding
-	end
-
-	local menuX = curX + 2
-	if not clicked then
+function File:save(contents)
+	if fs.isDir(self.path) or fs.isReadOnly(self.path) then
 		return false
 	end
 
-	-- Flash menu item
-	term.setCursorBlink(false)
-	term.setCursorPos(menuX, 1)
-	term.setBackgroundColor(theme.background)
-	term.write(string.rep(" ", clicked:len() + 2))
-	term.setCursorPos(menuX + 1, 1)
-	term.write(clicked)
-	sleep(0.1)
+	local f = io.open(self.path, "w")
+	f:write(contents)
+	f:close()
 
-	local items, width = drawMenu(clicked)
-	local action = nil
-	local ox, oy = term.getCursorPos()
+	return true
+end
 
-	while not action do
-		local e, but, x, y = os.pullEvent()
 
-		if e == "mouse_click" then
-			-- Click outside menu bounds
-			if x < menuX - 1 or x > menuX + width - 1 then
-				break
-			elseif y > #items + 2 then
-				break
-			elseif y == 1 then
-				break
-			end
 
-			for i, v in ipairs(items) do
-				if y == i + 1 and x >= menuX and x <= menuX + width - 2 then
-					-- Flash
-					term.setBackgroundColor(theme.background)
-					fill(menuX, y, width, 1)
-					term.setCursorPos(menuX + 1, y)
-					term.write(v)
-					sleep(0.1)
+--    Content
 
-					drawMenu(clicked)
 
-					action = v
-					break
-				end
-			end
+local Content = {}
+Content.__index = Content
+
+
+Content.startY = 3
+
+
+function Content.new()
+	local self = setmetatable({}, Content)
+	self:setup()
+
+	return self
+end
+
+
+function Content:setup()
+	local height = h - Content.startY + 1
+	self.win = window.create(term.native(), 1, Content.startY, w, height, false)
+end
+
+
+function Content:show()
+	term.redirect(self.win)
+	self.win.setVisible(true)
+	self.win.redraw()
+	self.win.restoreCursor()
+end
+
+
+function Content:hide()
+	self.win.setVisible(false)
+end
+
+
+function Content:draw()
+	self:show()
+end
+
+
+function Content:getName()
+	return "test"
+end
+
+
+function Content:event(event)
+	print(table.concat(event, " "))
+end
+
+
+
+--    Content Manager
+
+
+local ContentManager = {}
+ContentManager.__index = ContentManager
+
+
+function ContentManager.new()
+	local self = setmetatable({}, ContentManager)
+	self:setup()
+
+	return self
+end
+
+
+function ContentManager:setup()
+	self.contents = {}
+	self.current = 1
+end
+
+
+function ContentManager:create(index)
+	if not index then
+		index = #self.contents + 1
+	end
+
+	local content = Content.new()
+	table.insert(self.contents, index, content)
+end
+
+
+function ContentManager:switch(index)
+	if self.contents[index] then
+		self:hideAll()
+		self.current = index
+		self.contents[self.current]:show()
+	end
+end
+
+
+function ContentManager:close(index)
+	if not index then
+		index = self.current
+	end
+
+	if index <= #self.contents then
+		table.remove(self.contents, index)
+
+		if self.current >= index then
+			local index = math.max(1, self.current - 1)
+			self:switch(index)
+		end
+	end
+end
+
+
+function ContentManager:getTabNames()
+	local names = {}
+	for _, content in pairs(self.contents) do
+		table.insert(names, content:getName())
+	end
+
+	return names
+end
+
+
+function ContentManager:show()
+	self.contents[self.current]:show()
+end
+
+
+function ContentManager:hideAll()
+	for i, _ in pairs(self.contents) do
+		self.contents[i]:hide()
+	end
+end
+
+
+function ContentManager:event(event)
+	self.contents[self.current]:event(event)
+end
+
+
+
+--    Tab Bar
+
+-- Delegate responds to:
+--  getTabNames()
+
+
+local TabBar = {}
+TabBar.__index = TabBar
+
+
+TabBar.y = 2
+
+TabBar.maxTabWidth = 8
+TabBar.maxTabs = 5
+
+
+function TabBar.new(delegate)
+	local self = setmetatable({}, TabBar)
+	self:setup(delegate)
+
+	return self
+end
+
+
+function TabBar.sanitiseName(name)
+	local new = name:gsub("^%s*(.-)%s*$", "%1")
+	if new:len() > TabBar.maxTabWidth then
+		new = new:sub(1, TabBar.maxTabWidth):gsub("^%s*(.-)%s*$", "%1")
+	end
+
+	if new:sub(-1, -1) == "." then
+		new = new:sub(1, -2):gsub("^%s*(.-)%s*$", "%1")
+	end
+
+	return new:gsub("^%s*(.-)%s*$", "%1")
+end
+
+
+function TabBar:setup(delegate)
+	self.delegate = delegate
+	self.win = window.create(term.native(), 1, TabBar.y, w, 1, false)
+	self.current = 1
+end
+
+
+function TabBar:draw()
+	local names = self.delegate:getTabNames()
+
+	term.redirect(self.win)
+	self.win.setVisible(true)
+
+	clear(theme.background, theme.text)
+
+	for i, name in pairs(names) do
+		local actualName = TabBar.sanitiseName(name)
+
+		if i == self.current then
+			term.setTextColor(theme.text)
+		else
+			term.setTextColor(theme.hiddenText)
+		end
+
+		term.write(" " .. actualName)
+
+		if i == self.current and #names > 1 then
+			term.setTextColor(theme.error)
+			term.write("x")
+		else
+			term.write(" ")
 		end
 	end
 
-	term.setCursorPos(ox, oy)
-	term.setCursorBlink(true)
+	if #names < TabBar.maxTabs then
+		term.setTextColor(theme.hiddenText)
+		term.write(" + ")
+	end
+end
+
+
+function TabBar:determineClickedTab(x, y)
+	local index, action = nil, nil
+
+	if y == 1 then
+		local names = self.delegate:getTabNames()
+		local currentX = 2
+
+		for i, name in pairs(names) do
+			local actualName = TabBar.sanitiseName(name)
+			local endX = currentX + actualName:len() - 1
+
+			if x >= currentX and x <= endX then
+				index = i
+				action = "switch"
+			elseif x == endX + 1 and i == self.current and #names > 1 then
+				index = i
+				action = "close"
+			end
+
+			currentX = endX + 3
+		end
+
+		if x == currentX then
+			action = "create"
+		end
+	end
+
+	return action, index
+end
+
+
+function TabBar:click(button, x, y)
+	local action, index = self:determineClickedTab(x, y)
+
+	local cancel = false
+	if y == 1 then
+		cancel = true
+	end
+
+	if action then
+		local names = self.delegate:getTabNames()
+
+		if action == "switch" then
+			self.current = index
+			os.queueEvent("tab_bar_switch", index)
+		elseif action == "create" then
+			os.queueEvent("tab_bar_create")
+		elseif action == "close" and #names > 1 then
+			os.queueEvent("tab_bar_close", index)
+		end
+	end
+
+	return cancel
+end
+
+
+function TabBar:event(event)
+	local cancel = false
+
+	if event[1] == "mouse_click" then
+		cancel = self:click(event[2], event[3], event[4])
+	end
+
+	return cancel
+end
+
+
+
+--    Content Manager and Tab Bar Link
+
+
+local ContentTabLink = {}
+ContentTabLink.__index = ContentTabLink
+
+
+function ContentTabLink.new()
+	local self = setmetatable({}, ContentTabLink)
+	self:setup()
+
+	return self
+end
+
+
+function ContentTabLink:setup()
+	self.contentManager = ContentManager.new()
+	self.tabBar = TabBar.new(self.contentManager)
+
+	local index = #self.contentManager.contents + 1
+	self.contentManager:create(index)
+	self.contentManager:switch(index)
+end
+
+
+function ContentTabLink:draw()
+	self.tabBar:draw()
+	self.contentManager.contents[self.contentManager.current]:draw()
+end
+
+
+function ContentTabLink:getTabBarAction(event)
+	local action = nil
+
+	if event:find("tab_bar_") == 1 then
+		action = event:gsub("tab_bar_", "")
+	end
+
 	return action
 end
 
 
-menu_executeItem = function(item, path)
-	if menu_functions[item] then
-		file_save(path, lines)
-		local actions = menu_functions[item](path, lines, y)
-
-		term.setCursorBlink(false)
-		if actions then
-			if actions.action then
-				return actions.action
-			end
-			if actions.lines then
-				lines = actions.lines
-
-				if #lines < 1 then
-					table.insert(lines, "")
-				end
-				y = math.min(y, #lines)
-				x = math.min(x, lines[y]:len() + 1)
-			end
-			if actions.cursorY then
-				x = 1
-				y = math.min(#lines, actions.cursorY)
-				edit_setCursorLocation(x, y)
-			end
-		end
-
-		term.setCursorBlink(true)
-		draw()
-		term.setCursorPos(x - scrollX + offsetX, y - scrollY + offsetY)
+function ContentTabLink:tabBarAction(action, index)
+	if action == "switch" then
+		self.contentManager:switch(index)
+	elseif action == "close" then
+		self.contentManager:close()
+	elseif action == "create" then
+		self.contentManager:create()
 	end
 end
 
 
+function ContentTabLink:event(event)
+	local cancel = false
 
-
---    Editor Drawing
-
-
-edit_draw = function()
-	clear()
-	menu_draw()
-
-	offsetX = tostring(#lines):len() + 1
-	offsetY = 1
-	editorWidth = w - offsetX
-	editorHeight = h - 1
-
-	for i = 1, editorHeight do
-		local line = lines[scrollY + i]
-		if line then
-			-- Line number
-			local lineNumber = string.rep(" ", offsetX - 1 - tostring(scrollY + i):len()) .. tostring(scrollY + i) .. ":"
-
-			if liveError.line == scrollY + i then
-				lineNumber = string.rep(" ", offsetX - 2) .. "!:"
-			end
-
-			term.setCursorPos(1, i + offsetY)
-			term.setTextColor(theme.text)
-
-			-- Line background
-			term.setBackgroundColor(theme.background)
-			if scrollY + i == y then
-				if scrollY + i == liveError.line and os.clock() - lastEventClock > 3 then
-					term.setBackgroundColor(theme.editor_errorLineHighlight)
-				else
-					term.setBackgroundColor(theme.editor_lineHightlight)
-				end
-			elseif scrollY + i == liveError.line then
-				term.setBackgroundColor(theme.editor_errorLine)
-			end
-			term.clearLine()
-
-			-- Text
-			term.setCursorPos(1 - scrollX + offsetX, i + offsetY)
-			if scrollY + i == liveError.line then
-				if displayErrorCode then
-					term.write(liveError.display)
-				else
-					term.write(line)
-				end
-			else
-				writeHighlighted(line)
-			end
-
-			-- Line numbers
-			term.setCursorPos(1, i + offsetY)
-			if scrollY + i == y then
-				if scrollY + i == liveError.line and os.clock() - lastEventClock > 3 then
-					term.setBackgroundColor(theme.editor_errorLine)
-				else
-					term.setBackgroundColor(theme.editor_lineNumberHighlight)
-				end
-			elseif scrollY + i == liveError.line then
-				term.setBackgroundColor(theme.editor_errorLineHighlight)
-			else
-				term.setBackgroundColor(theme.editor_lineNumber)
-			end
-			term.write(lineNumber)
-		end
-	end
-
-	term.setCursorPos(x - scrollX + offsetX, y - scrollY + offsetY)
-end
-
-
-edit_drawLine = function(...)
-	local linesToDraw = {...}
-	offsetX = tostring(#lines):len() + 1
-
-	for _, lineY in pairs(linesToDraw) do
-		local line = lines[lineY]
-		if line then
-			-- Line number
-			local lineNumber = string.rep(" ", offsetX - 1 - tostring(lineY):len()) .. tostring(lineY) .. ":"
-
-			if liveError.line == lineY then
-				lineNumber = string.rep(" ", offsetX - 2) .. "!:"
-			end
-
-			term.setCursorPos(1, (lineY - scrollY) + offsetY)
-			term.setBackgroundColor(theme.background)
-
-			-- Background color
-			if lineY == y then
-				if lineY == liveError.line and os.clock() - lastEventClock > 3 then
-					term.setBackgroundColor(theme.editor_errorLineHighlight)
-				else
-					term.setBackgroundColor(theme.editor_lineHightlight)
-				end
-			elseif lineY == liveError.line then
-				term.setBackgroundColor(theme.editor_errorLine)
-			end
-			term.clearLine()
-
-			-- Text
-			term.setCursorPos(1 - scrollX + offsetX, (lineY - scrollY) + offsetY)
-			if lineY == liveError.line then
-				if displayErrorCode then
-					term.write(liveError.display)
-				else
-					term.write(line)
-				end
-			else
-				writeHighlighted(line)
-			end
-
-			-- Line Number
-			term.setCursorPos(1, (lineY - scrollY) + offsetY)
-			if lineY == y then
-				if lineY == liveError.line and os.clock() - lastEventClock > 3 then
-					term.setBackgroundColor(theme.editor_errorLine)
-				else
-					term.setBackgroundColor(theme.editor_lineNumberHighlight)
-				end
-			elseif lineY == liveError.line then
-				term.setBackgroundColor(theme.editor_errorLineHighlight])
-			else
-				term.setBackgroundColor(theme.editor_lineNumber)
-			end
-			term.write(lineNumber)
-		end
-	end
-
-	term.setCursorPos(x - scrollX + offsetX, y - scrollY + offsetY)
-end
-
-
-
-
---    Editor Event Handling
-
-
-edit_setCursorLocation = function(nx, ny)
-	local nScrollX, nScrollY = nx - scrollX, ny - scrollY
-	local redraw = false
-
-	if nScrollX < 1 then
-		scrollX = nx - 1
-		nScrollX = 1
-		redraw = true
-	elseif nScrollX > editorWidth then
-		scrollX = nx - editorWidth
-		nScrollX = editorWidth
-		redraw = true
-	end
-
-	if nScrollY < 1 then
-		scrollY = y - 1
-		nScrollY = 1
-		redraw = true
-	elseif nScrollY > editorHeight then
-		scrollY = y - editorHeight
-		nScrollY = editorHeight
-		redraw = true
-	end
-
-	if redraw or y - scrollY + offsetY < offsetY + 1 then
-		edit_draw()
-	end
-
-	term.setCursorPos(nScrollX + offsetX, nScrollY + offsetY)
-end
-
-
-edit_handleKey = function(key)
-	if key == keys.up and y > 1 then
-		x = math.min(x, lines[y - 1]:len() + 1)
-		y = y - 1
-		edit_drawLine(y, y + 1)
-		edit_setCursorLocation(x, y)
-
-	elseif key == keys.down and y < #lines then
-		x = math.min(x, lines[y + 1]:len() + 1)
-		y = y + 1
-		edit_drawLine(y, y - 1)
-		edit_setCursorLocation(x, y)
-
-	elseif key == keys.left and x > 1 then
-		x = x - 1
-		edit_setCursorLocation(x, y)
-
-	elseif key == keys.right and x < lines[y]:len() + 1 then
-		x = x + 1
-		edit_setCursorLocation(x, y)
-
-	elseif (key == keys.enter or key == keys.numPadEnter) then
-		if displayErrorCode or y + scrollY - 1 == liveError.line then
-			return
-		end
-
-		local completion = nil
-		for _, completion in pairs(standardsCompletions) do
-			if lines[y]:find(completion) and x == #lines[y] + 1 then -- If there is a completion, and the cursor is at the end of the line
-				completion = completion
-			end
-		end
-
-		-- Count the number of spaces at the start of the line
-		local _, spaces = lines[y]:find("^[ ]+")
-		if not spaces then
-			spaces = 0
-		end
-
-		if completion then
-			table.insert(lines, y + 1, string.rep(" ", spaces + 2))
-
-			-- Insert the second line
-			if not completion:find("else", 1, true) and not completion:find("elseif", 1, true) then
-				local line = string.rep(" ", spaces)
-				if completion:find("repeat", 1, true) then
-					line = line .. "until "
-				elseif completion:find("{", 1, true) then
-					line = line .. "}"
-				else
-					line = line .. "end"
-				end
-
-				table.insert(lines, y + 2, line)
-			end
-
-			x = spaces + 3
-			y = y + 1
-			edit_setCursorLocation(x, y)
-		else
-			local oldLine = lines[y]
-			lines[y] = lines[y]:sub(1, x - 1)
-			table.insert(lines, y + 1, string.rep(" ", spaces) .. oldLine:sub(x, -1))
-
-			x = spaces + 1
-			y = y + 1
-			edit_setCursorLocation(x, y)
-		end
-
-	elseif key == keys.backspace then
-		if displayErrorCode or y + scrollY - 1 == liveError.line then
-			return
-		end
-
-		if x > 1 then
-			local f = false
-			for k, closing in pairs(liveCompletions) do
-				if lines[y]:sub(x - 1, x - 1) == k then f = true end
-			end
-
-			lines[y] = lines[y]:sub(1, x - 2) .. lines[y]:sub(x + (f and 1 or 0), -1)
-			edit_drawLine(y)
-			x = x - 1
-			edit_setCursorLocation(x, y)
-		elseif y > 1 then
-			local prevLen = lines[y - 1]:len() + 1
-			lines[y - 1] = lines[y - 1] .. lines[y]
-			table.remove(lines, y)
-			x, y = prevLen, y - 1
-
-			edit_draw()
-			edit_setCursorLocation(x, y)
-		end
-
-	elseif key == keys.home then
-		x = 1
-		edit_setCursorLocation(x, y)
-
-	elseif key == keys["end"] then
-		x = lines[y]:len() + 1
-		edit_setCursorLocation(x, y)
-
-	elseif key == keys.delete then
-		if displayErrorCode or y + scrollY - 1 == liveError.line then
-			return
-		end
-
-		if x < lines[y]:len() + 1 then
-			lines[y] = lines[y]:sub(1, x - 1) .. lines[y]:sub(x + 1)
-			edit_drawLine(y)
-			edit_setCursorLocation(x, y)
-		elseif y < #lines then
-			lines[y] = lines[y] .. lines[y + 1]
-			table.remove(lines, y + 1)
-			edit_draw()
-			edit_setCursorLocation(x, y)
-		end
-
-	elseif key == keys.tab then
-		if displayErrorCode or y + scrollY - 1 == liveError.line then
-			return
-		end
-
-		lines[y] = string.rep(" ", tabWidth) .. lines[y]
-		x = x + 2
-		edit_drawLine(y)
-		edit_setCursorLocation(x, y)
-
-	elseif key == keys.pageUp then
-		y = math.min(math.max(y - editorHeight, 1), #lines)
-		x = math.min(lines[y]:len() + 1, x)
-		edit_setCursorLocation(x, y, true)
-
-	elseif key == keys.pageDown then
-		y = math.min(math.max(y + editorHeight, 1), #lines)
-		x = math.min(lines[y]:len() + 1, x)
-		edit_setCursorLocation(x, y, true)
-	end
-end
-
-
-edit_handleChar = function(key)
-	if displayErrorCode or y + scrollY - 1 == liveError.line then
-		return
-	end
-
-	-- If we are typing the second character of a live completion (eg the second ")
-	local shouldIgnore = false
-	for opening, closing in pairs(liveCompletions) do
-		if key == closing and lines[y]:find(opening, 1, true) and lines[y]:sub(x, x) == closing then
-			shouldIgnore = true
-		end
-	end
-
-	-- Whether to add the second character of a live completions (eg the second " after typing the first)
-	local addOne = nil
-	if not shouldIgnore then
-		for opening, closing in pairs(liveCompletions) do
-			if key == opening and lines[y]:sub(x, x) ~= opening then
-				addOne = closing
-			end
-		end
-
-		lines[y] = lines[y]:sub(1, x - 1) .. key .. (addOne and addOne or "") .. lines[y]:sub(x, -1)
-	end
-
-	x = x + key:len()
-	edit_drawLine(y)
-	edit_setCursorLocation(x, y)
-end
-
-
-edit_handleMouseClick = function(button, cx, cy)
-	if cy > 1 then
-		if cx <= offsetX and cy - offsetY == liveError.line - scrollY then
-			-- Trigger showing the live error text
-			displayErrorCode = not displayErrorCode
-			edit_drawLine(liveError.line)
-		else
-			local oldy = y
-			y = math.min(math.max(scrollY + cy - offsetY, 1), #lines)
-			x = math.min(math.max(scrollX + cx - offsetX, 1), lines[y]:len() + 1)
-
-			if oldy ~= y then
-				edit_drawLine(oldy, y)
-			end
-			edit_setCursorLocation(x, y)
-		end
-	else
-		local selectedMenu = triggerMenu(cx, cy)
-		if selectedMenu then
-			local action = menu_executeItem(selectedMenu, path)
-			if action then
-				return action
-			end
-		end
-	end
-end
-
-
-edit_handleShortcut = function(modifier, key)
-	local item = menu_shortcuts[modifier .. " " .. key]
-	if item then
-		-- Find the parent menu item
-		local parent = nil
-		local curX = 0
-		for i, potentialParent in pairs(menu_items) do
-			for _, subItem in pairs(potentialParent) do
-				if subItem == item then
-					parent = menu_items[i][1]
-					break
-				end
-			end
-
-			curX = curX + potentialParent[1]:len() + 3
-		end
-		local menuX = curX + 2
-
-		-- Flash parent item
-		term.setCursorBlink(false)
-		term.setBackgroundColor(colors[theme.background])
-		fill(menuX, 1, parent:len() + 2, 1)
-		term.setCursorPos(menuX + 1, 1)
-		term.write(parent)
-		sleep(0.1)
-		drawMenu()
-
-		-- Execute
-		local action = menu_executeItem(item, path)
-		if action then
-			return action
-		end
-	end
-end
-
-
-edit_handleMouseScroll = function(direction)
-	if direction == -1 and scrollY > 0 then
-		scrollY = scrollY - 1
-	elseif direction == 1 and scrollY < #lines - editorHeight then
-		scrollY = scrollY + 1
-	end
-
-	if os.clock() - scrollClock > 0.0005 then
-		edit_draw()
-		term.setCursorPos(x - scrollX + offsetX, y - scrollY + offsetY)
-	end
-
-	scrollClock = os.clock()
-	hasScrolled = true
-end
-
-
-edit_loop = function()
-	local e, key, cx, cy = os.pullEvent()
-
-	if e == "key" and allowEditorEvent then
-		edit_handleKey(key)
-	elseif e == "char" and allowEditorEvent then
-		edit_handleChar(key)
-	elseif e == "mouse_click" and key == 1 then
-		local action = edit_handleMouseClick(key, cx, cy)
-		if action then
-			return action
-		end
-	elseif e == "shortcut" then
-		local action = edit_handleShortcut(key, cx)
-		if action then
-			return action
-		end
-	elseif e == "mouse_scroll" then
-		edit_handleMouseScroll(key)
-	end
-
-	if hasScrolled and os.clock() - scrollClock > 0.1 then
-		edit_draw()
-		term.setCursorPos(x - scrollX + offsetX, y - scrollY + offsetY)
-		hasScrolled = false
-	end
-
-	if os.clock() - autosaveClock > autosaveInterval then
-		saveFile(path, lines)
-		autosaveClock = os.clock()
-	end
-
-	if os.clock() - liveErrorClock > 1 then
-		local previousLiveError = liveError
-		liveError = currentLanguage.parseError(nil)
-		local code = ""
-		for _, closing in pairs(lines) do
-			code = code .. closing .. "\n"
-		end
-
-		liveError = currentLanguage.getCompilerErrors(code)
-		liveError.line = math.min(liveError.line - 2, #lines)
-		if liveError ~= previousLiveError then
-			edit_draw()
-		end
-
-		liveErrorClock = os.clock()
-	end
-end
-
-
-
-
---    Editor Main
-
-
-edit = function(path)
-	local action = edit_setup()
+	local action = self:getTabBarAction(event[1])
 	if action then
-		return action
-	end
-	
-	while true do
-		local action = edit_loop()
-		if action then
-			return action
-		end
+		self:tabBarAction(action, event[2])
+		self.tabBar:draw()
+		cancel = true
 	end
 
-	return "menu"
+	if not cancel then
+		cancel = self.tabBar:event(localiseEvent(event, TabBar.y))
+	end
+
+	if not cancel then
+		cancel = self.contentManager:event(localiseEvent(event, Content.startY))
+	end
+
+	return cancel
 end
 
 
 
+--    Shortcut Handler
 
---    Main
+
+local ShortcutManager = {}
+ShortcutManager.__index = ShortcutManager
 
 
-local main = function(programArgs)
-	local option = "menu"
-	local args = nil
+function ShortcutManager.new()
+	local self = setmetatable({}, ShortcutManager)
+	self:setup()
 
-	if #programArgs > 0 then
-		local path = "/" .. shell.resolve(programArgs[1])
-		if fs.isDir(path) then
-			print("Cannot edit a directory.")
-			return
+	return self
+end
+
+
+function ShortcutManager:setup()
+	self.timeout = 0.4
+	self.shiftPressed = false
+	self.controlPressed = false
+
+	self.shiftTimerID = -1
+	self.controlTimerID = -1
+end
+
+
+function ShortcutManager:key(key)
+	if key == 42 or key == 54 then
+		self.shiftPressed = true
+		self.shiftTimerID = os.startTimer(self.timeout)
+	elseif key == 29 or key == 157 or key == 219 or key == 220 then
+		self.controlPressed = true
+		self.controlTimerID = os.startTimer(self.timeout)
+	end
+end
+
+
+function ShortcutManager:char(char)
+	if self.controlPressed and self.shiftPressed then
+		os.queueEvent("shortcut", "ctrl shift", char:lower())
+	elseif self.controlPressed then
+		os.queueEvent("shortcut", "ctrl", char:lower())
+	end
+end
+
+
+function ShortcutManager:timer(id)
+	if id == self.shiftTimerID then
+		self.shiftPressed = false
+		self.shiftTimerID = -1
+	elseif id == self.controlTimerID then
+		self.controlPressed = false
+		self.controlTimerID = -1
+	end
+end
+
+
+function ShortcutManager:event(event)
+	if event[1] == "key" then
+		self:key(event[2])
+	elseif event[1] == "timer" then
+		self:timer(event[2])
+	elseif event[1] == "char" then
+		self:char(event[2])
+	end
+end
+
+
+
+--    Menu Bar Item
+
+
+local MenuItem = {}
+MenuItem.__index = MenuItem
+
+
+function MenuItem.new(name, subitems, shortcuts)
+	local self = setmetatable({}, MenuItem)
+	self:setup(name, subitems, shortcuts)
+
+	return self
+end
+
+
+function MenuItem.displayShortcut(shortcut)
+	return shortcut:gsub("ctrl ", "^"):gsub("shift ", "-"):upper()
+end
+
+
+function MenuItem.appendShortcut(name, shortcut, width)
+	local actual = name
+
+	if shortcut:len() > 0 then
+		local cut = MenuItem.displayShortcut(shortcut)
+		actual = name .. string.rep(" ", (width - name:len() - cut:len()) + 1) .. cut
+	end
+
+	return actual
+end
+
+
+function MenuItem:setup(name, subitems, shortcuts)
+	self.name = name
+	self.subitems = subitems
+	self.shortcuts = shortcuts
+end
+
+
+function MenuItem:setupWindow(x, y)
+	local shortcutWidth = 0
+	for _, shortcut in pairs(self.shortcuts) do
+		local actual = MenuItem.displayShortcut(shortcut):len()
+		if actual > shortcutWidth then
+			shortcutWidth = actual
+		end
+	end
+
+	local width = 2
+	for i, name in pairs(self.subitems) do
+		local itemWidth = name:len() + shortcutWidth
+		if itemWidth > width then
+			width = itemWidth
+		end
+	end
+
+	self.x = x
+	self.y = y
+	self.width = width + 3
+	self.height = #self.subitems + 2
+	self.win = window.create(term.native(), x, y, self.width, self.height, false)
+end
+
+
+function MenuItem:determineClickedItem(x, y)
+	local index = nil
+
+	if x >= 1 and x <= self.width and y >= 2 and y <= self.height - 1 then
+		index = y - 1
+	end
+
+	return index
+end
+
+
+function MenuItem:draw(highlightIndex)
+	term.redirect(self.win)
+	clear(theme.background, theme.text)
+
+	for i, name in pairs(self.subitems) do
+		term.setCursorPos(2, i + 1)
+
+		if i == highlightIndex then
+			term.setBackgroundColor(theme.highlightBackground)
+			term.clearLine()
 		else
-			option = "edit"
-			args = path
+			term.setBackgroundColor(theme.background)
+		end
+
+		local display = MenuItem.appendShortcut(name, self.shortcuts[i], self.width - 3)
+		term.write(display)
+	end
+end
+
+
+function MenuItem:highlightItem(index)
+	self:draw(index)
+	sleep(0.1)
+	self:draw()
+end
+
+
+function MenuItem:close()
+	self.win.setVisible(false)
+end
+
+
+function MenuItem:open()
+	self.win.setVisible(true)
+	self:draw()
+end
+
+
+
+--    Menu Bar
+
+
+local MenuBar = {}
+MenuBar.__index = MenuBar
+
+
+MenuBar.y = 1
+
+
+function MenuBar.new(items)
+	local self = setmetatable({}, MenuBar)
+	self:setup(items)
+
+	return self
+end
+
+
+function MenuBar:setup(items)
+	self.items = items
+	self.win = window.create(term.native(), 1, MenuBar.y, w, 1, false)
+
+	self.isMenuOpen = false
+	self.openMenuIndex = nil
+
+	local currentX = 2
+	for i, item in pairs(self.items) do
+		self.items[i]:setupWindow(currentX - 1, MenuBar.y + 1)
+		currentX = currentX + item.name:len() + 2
+	end
+end
+
+
+function MenuBar:draw(highlightIndex)
+	term.redirect(self.win)
+	self.win.setVisible(true)
+
+	clear(theme.background, theme.text)
+
+	for i, item in pairs(self.items) do
+		if i == highlightIndex then
+			term.setBackgroundColor(theme.highlightBackground)
+		else
+			term.setBackgroundColor(theme.background)
+		end
+
+		term.write(" " .. item.name .. " ")
+	end
+
+	if self.isMenuOpen then
+		self.items[self.openMenuIndex]:draw()
+	end
+end
+
+
+function MenuBar:determineClickedMenu(x, y)
+	local index = nil
+
+	if y == 1 then
+		local currentX = 2
+		for i, item in pairs(self.items) do
+			local endX = currentX + item.name:len() - 1
+			if x >= currentX and x <= endX then
+				index = i
+			end
+
+			currentX = endX + 3
 		end
 	end
 
+	return index
+end
 
-	while true do
-		if option == "menu" then
-			option = menu_items()
+
+function MenuBar:highlightMenu(index)
+	self:draw(index)
+	sleep(0.1)
+	self:draw()
+end
+
+
+function MenuBar:openMenu(index)
+	self.isMenuOpen = true
+	self.openMenuIndex = index
+
+	self.items[index]:open()
+	self:highlightMenu(index)
+end
+
+
+function MenuBar:closeAllMenus()
+	self.isMenuOpen = false
+	self.openMenuIndex = nil
+
+	for i, item in pairs(self.items) do
+		item:close()
+	end
+end
+
+
+function MenuBar:click(button, x, y)
+	local cancel = false
+
+	if self.isMenuOpen then
+		local item = self.items[self.openMenuIndex]
+
+		local localised = localiseEvent({"mouse_click", button, x, y}, item.y, item.x)
+		local index = item:determineClickedItem(localised[3], localised[4])
+		if index then
+			item:highlightItem(index)
+			os.queueEvent("menu_bar_action", self.openMenuIndex, index)
 		end
 
-		if option == "new" then
-			option, args = file_newFile()
+		if index or x < item.x or x > item.x + item.width - 1 or
+					y < item.y or y > item.y + item.height - 1 then
+			self:closeAllMenus()
 		end
 
-		if option == "open" then
-			option, args = file_openFile()
+		self:draw()
+		cancel = true
+	else
+		local index = self:determineClickedMenu(x, y)
+		if index then
+			self:openMenu(index)
 		end
 
-		if option == "settings" then
-			option = settings()
+		if y == 1 then
+			cancel = true
 		end
+	end
 
-		if option == "exit" then
-			break
-		end
+	return cancel
+end
 
-		if option == "edit" and args then
-			option = edit(args)
+
+function MenuBar:shortcut(shortcut)
+	for menuI, menu in pairs(self.items) do
+		for itemI, test in pairs(menu.shortcuts) do
+			if test == shortcut then
+				os.queueEvent("menu_bar_action", menuI, itemI)
+			end
 		end
 	end
 end
 
 
-local success, err = pcall(function()
-	main(args)
-end)
+function MenuBar:event(event)
+	local cancel = false
+
+	if event[1] == "mouse_click" then
+		cancel = self:click(event[2], event[3], event[4])
+	elseif event[1] == "shortcut" then
+		cancel = self:shortcut(event[2] .. " " .. event[3])
+	end
+
+	return cancel
+end
 
 
-term.setCursorBlink(false)
-if err and not err:find("Terminated") then
-	clear()
-	title("Lua IDE : Crash Report")
-	top("Lua IDE encountered an unexpected crash.", "Please report this error to GravityScore.")
+
+--    App
+
+
+local App = {}
+App.__index = App
+
+
+function App.new()
+	local self = setmetatable({}, App)
+	self:setup()
+
+	return self
+end
+
+
+function App:getMenuItems()
+	return {
+		MenuItem.new("File", {
+			"About",
+			"New",
+			"Open",
+			"Exit IDE",
+		}, {
+			"",
+			"ctrl n",
+			"ctrl o",
+			"ctrl q",
+		}),
+
+		MenuItem.new("Edit", {
+			"Copy",
+			"Cut",
+			"Paste",
+
+			"Copy Line",
+			"Cut Line",
+			"Paste Line",
+
+			"Go to line",
+		}, {
+			"ctrl c",
+			"ctrl x",
+			"ctrl v",
+
+			"",
+			"",
+			"",
+
+			"",
+		}),
+
+		MenuItem.new("Run", {
+			"Run",
+			"Run with args"
+		}, {
+			"ctrl r",
+			"ctrl shift r"
+		}),
+	}
+end
+
+
+function App:setup()
+	self.manager = ContentTabLink.new()
+	self.menuBar = MenuBar.new(self:getMenuItems())
+	self.shortcutManager = ShortcutManager.new()
+end
+
+
+function App:draw()
+	self.menuBar:draw()
+	self.manager:draw()
+end
+
+
+function App:event(event)
+	local cancel = false
+
+	self.shortcutManager:event(event)
+
+	if not cancel then
+		cancel = self.menuBar:event(localiseEvent(event, MenuBar.y))
+	end
+
+	if not cancel then
+		cancel = self.manager:event(event)
+	end
+end
+
+
+function App:main()
+	term.redirect(term.native())
+	clear(theme.background, theme.text)
+	self:draw()
+
+	while true do
+		local event = {os.pullEvent()}
+		self:draw()
+		self:event(event)
+	end
+end
+
+
+
+--    Error
+
+
+local Error = {}
+Error.__index = Error
+
+
+function Error.new(msg)
+	local self = setmetatable({}, Error)
+	self:setup(msg)
+
+	return self
+end
+
+
+function Error:setup(msg)
+	self.msg = msg
+end
+
+
+function Error:shouldThrow()
+	return self.msg and not self.msg:lower():find("terminate")
+end
+
+
+function Error:displayCrash()
+	clear(theme.background, theme.text)
+
+	fill(1, 3, w, 3, theme.accent)
+	term.setCursorPos(1, 4)
+	center("LuaIDE has crashed!")
 
 	term.setBackgroundColor(theme.background)
-	print(err)
+	term.setCursorPos(1, 8)
+	centerSplit(self.msg, w - 4)
+	print("\n")
+	center("Please report this error to")
+	center("GravityScore.")
 	print("")
+	center("Press any key to exit.")
 
-	bottom("Press any key to exit.")
-	
 	os.pullEvent("key")
 	os.queueEvent("")
 	os.pullEvent()
 end
 
 
-term.setBackgroundColor(colors.black)
-term.setTextColor(colors.white)
-term.clear()
-term.setCursorPos(1, 1)
-center("Thank You for Using Lua IDE " .. version)
+
+--    Main
+
+
+local main = function()
+	local app = App.new()
+	app:main()
+end
+
+
+local original = term.current()
+local _, msg = pcall(main)
+term.redirect(original)
+
+local err = Error.new(msg)
+if err:shouldThrow() then
+	err:displayCrash()
+end
+
+
+clear(colors.black, colors.white)
+center("Thanks for using LuaIDE " .. version)
 center("Made by GravityScore")
+print("")
