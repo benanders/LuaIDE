@@ -28,7 +28,7 @@ function ContentManager:create(index)
 		index = #self.contents + 1
 	end
 
-	local content = Editor.new()
+	local content = Content.new()
 	table.insert(self.contents, index, content)
 end
 
@@ -385,7 +385,7 @@ function ContentTabLink:event(event)
 			cancel = self.tabBar:event(tabEvent)
 		end
 
-		local contentEvent = localiseEvent(event, Editor.startY)
+		local contentEvent = localiseEvent(event, Content.startY)
 		if not cancel and self:isEventValid(contentEvent) then
 			cancel = self.contentManager:event(contentEvent)
 		end
