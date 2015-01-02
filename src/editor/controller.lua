@@ -51,7 +51,6 @@ end
 function Controller:run()
 	self.menuBar:draw()
 	self.tabBar:draw()
-	self.tabBar:restoreCursor()
 
 	while true do
 		local event = {os.pullEventRaw()}
@@ -69,5 +68,7 @@ function Controller:run()
 		if not cancel then
 			cancel = self.tabBar:event(event)
 		end
+
+		self.tabBar:restoreCursor()
 	end
 end

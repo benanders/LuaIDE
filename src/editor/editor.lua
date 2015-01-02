@@ -29,7 +29,6 @@ function Editor:setup(lines, width, height)
 	self.cursor = {}
 	self.cursor.x = 1
 	self.cursor.y = 1
-	self.cursor.visible = true
 
 	--- The scroll amount on each axis. Starting at (0, 0).
 	self.scroll = {}
