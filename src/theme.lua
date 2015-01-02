@@ -38,8 +38,10 @@ Theme.load = function()
 		-- Syntax Highlighting
 		Theme["keywords"] = colors.lightBlue
 		Theme["constants"] = colors.darkBlue
-		Theme["operators"] = colors.lime -- CHANGE to black
+		Theme["operators"] = colors.magenta -- CHANGE to black
 		Theme["functions"] = colors.brown -- CHANGE to black
+		Theme["string"] = colors.red
+		Theme["comment"] = colors.lime
 	else
 
 	end

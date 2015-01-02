@@ -38,6 +38,9 @@ SyntaxHighlighter.tags = {
 	},
 }
 
+--- Characters that should trigger a full redraw of the screen.
+SyntaxHighlighter.fullRedrawTriggers = "-[\"'"
+
 --- Characters that act as word separators, in addition to whitespace.
 SyntaxHighlighter.separators = "./\\()\"'-:,.;<>~!@#$%^&*|+=[]{}`~?"
 

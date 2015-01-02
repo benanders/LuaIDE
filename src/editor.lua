@@ -308,6 +308,7 @@ end
 
 
 --- Delete the character behind the current cursor position.
+--- Returns the backspaced character, or nil if nothing was deleted.
 function Editor:backspace()
 	self:resetCursorRestoration()
 
@@ -317,6 +318,7 @@ function Editor:backspace()
 
 		if x > 1 then
 			-- Remove a single character
+			local character = self.lines[y]:sub(x - 1, x - 1)
 			self.lines[y] = self.lines[y]:sub(1, x - 2) .. self.lines[y]:sub(x)
 			self:setDirty("line", self.cursor.y)
 
@@ -325,6 +327,8 @@ function Editor:backspace()
 			if self.cursor.x + self.scroll.x <= length + 1 then
 				self:moveCursorLeft()
 			end
+
+			return character
 		else
 			-- Remove the line
 			local length = self.lines[y - 1]:len()
@@ -334,8 +338,12 @@ function Editor:backspace()
 			-- Update the cursor
 			self:moveCursorTo(length + 1, y - 1)
 			self:setDirty("full")
+
+			return "\n"
 		end
 	end
+
+	return nil
 end
 
 

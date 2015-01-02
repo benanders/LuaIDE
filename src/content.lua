@@ -26,6 +26,8 @@ function Content:setup()
 	self.width = w
 	self.win = window.create(term.native(), 1, Content.startY, self.width, self.height, false)
 	self.editor = Editor.new({"hello", "wow", "testing"}, self.width, self.height)
+	self.highlighter = SyntaxHighlighter.new()
+	self:updateSyntaxHighlighting("")
 end
 
 
@@ -94,15 +96,27 @@ end
 
 --- Renders the text for a single line.
 function Content:drawText(y)
-	-- Calculate the text to render
-	local text = self.editor.lines[y + self.editor.scroll.y]
-	text = text:sub(self.editor.scroll.x + 1)
+	local absoluteY = y + self.editor.scroll.y
+	local data = self.highlighter:data(absoluteY, self.editor.scroll.x, self.width)
 
-	-- Render the text
 	term.setBackgroundColor(Theme["editor background"])
 	term.setTextColor(Theme["editor text"])
 	term.setCursorPos(self.editor:gutterSize() + 1, y)
-	term.write(text)
+
+	for _, item in pairs(data) do
+		if item.kind == "text" then
+			-- Render some text
+			term.write(item.data)
+		elseif item.kind == "color" then
+			-- Set the current text color
+			local index = item.data
+			if index == "text" then
+				index = "editor text"
+			end
+
+			term.setTextColor(Theme[index])
+		end
+	end
 end
 
 
@@ -148,6 +162,22 @@ function Content:updateDirty()
 end
 
 
+--- Updates the syntax highlighter.
+--- Triggers an update of the mapped data if character is non-nil,
+--- and a full redraw if character is one of the full redraw triggers.
+function Content:updateSyntaxHighlighting(character)
+	if character then
+		self.highlighter:update(self.editor.lines)
+
+		-- Trigger a full redraw if a mapped character was typed (ie. affects
+		-- the highlighting on other lines).
+		if SyntaxHighlighter.fullRedrawTriggers:find(character, 1, true) then
+			self.editor:setDirty("full")
+		end
+	end
+end
+
+
 --- Called when a key event occurs.
 function Content:key(key)
 	if key == keys.up then
@@ -159,17 +189,26 @@ function Content:key(key)
 	elseif key == keys.right then
 		self.editor:moveCursorRight()
 	elseif key == keys.backspace then
-		self.editor:backspace()
+		local character = self.editor:backspace()
+		self:updateSyntaxHighlighting(character)
 	elseif key == keys.enter then
 		self.editor:insertNewline()
+		self:updateSyntaxHighlighting("\n")
 	end
+end
+
+
+--- Called when a char event occurs.
+function Content:char(character)
+	self.editor:insertCharacter(character)
+	self:updateSyntaxHighlighting(character)
 end
 
 
 --- Called when an event occurs.
 function Content:event(event)
 	if event[1] == "char" then
-		self.editor:insertCharacter(event[2])
+		self:char(event[2])
 	elseif event[1] == "key" then
 		self:key(event[2])
 	elseif event[1] == "mouse_click" or event[1] == "mouse_drag" then
