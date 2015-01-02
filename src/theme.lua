@@ -3,7 +3,6 @@
 --  Theme
 --
 
-
 Theme = {}
 
 
@@ -35,6 +34,12 @@ Theme.load = function()
 		Theme["gutter text focused"] = colors.gray
 		Theme["gutter text error"] = colors.red
 		Theme["gutter separator"] = " "
+
+		-- Syntax Highlighting
+		Theme["keywords"] = colors.lightBlue
+		Theme["constants"] = colors.darkBlue
+		Theme["operators"] = colors.lime -- CHANGE to black
+		Theme["functions"] = colors.brown -- CHANGE to black
 	else
 
 	end

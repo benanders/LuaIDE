@@ -25,14 +25,14 @@ local function loadLibrary(path)
 	fn()
 end
 
-loadLibrary(rootDirectory .. "/util/util.lua")
-
-loadLibrary(rootDirectory .. "/editor/controller.lua")
-loadLibrary(rootDirectory .. "/editor/theme.lua")
-loadLibrary(rootDirectory .. "/editor/editor.lua")
-loadLibrary(rootDirectory .. "/editor/content.lua")
-loadLibrary(rootDirectory .. "/editor/menu.lua")
-loadLibrary(rootDirectory .. "/editor/tab.lua")
+loadLibrary(rootDirectory .. "/controller.lua")
+loadLibrary(rootDirectory .. "/menu.lua")
+loadLibrary(rootDirectory .. "/tab.lua")
+loadLibrary(rootDirectory .. "/content.lua")
+loadLibrary(rootDirectory .. "/editor.lua")
+loadLibrary(rootDirectory .. "/highlighter.lua")
+loadLibrary(rootDirectory .. "/theme.lua")
+loadLibrary(rootDirectory .. "/util.lua")
 
 
 

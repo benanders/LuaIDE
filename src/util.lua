@@ -3,7 +3,6 @@
 --  Utility APIs
 --
 
---- Contains various utilities.
 Util = {}
 
 

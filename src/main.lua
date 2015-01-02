@@ -4,7 +4,6 @@
 --  GravityScore
 --
 
-
 local environment = {}
 setmetatable(environment, {__index = _G})
 
