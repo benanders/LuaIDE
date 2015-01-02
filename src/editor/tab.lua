@@ -324,6 +324,12 @@ function ContentTabLink:setup()
 end
 
 
+--- Restore the cursor on the current editor
+function ContentTabLink:restoreCursor()
+	return self.contentManager.contents[self.contentManager.current]:restoreCursor()
+end
+
+
 --- Renders both the tab bar and current content window.
 function ContentTabLink:draw()
 	self.tabBar:draw()

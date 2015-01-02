@@ -43,7 +43,6 @@ function Controller:setup(args)
 
 	self.menuBar = MenuBar.new()
 	self.tabBar = ContentTabLink.new()
-	self.editor = Editor.new(project)
 	return true
 end
 
@@ -52,10 +51,7 @@ end
 function Controller:run()
 	self.menuBar:draw()
 	self.tabBar:draw()
-
-	-- Render the editor last so the cursor is in the correct position
-	self.editor:draw()
-	self.editor:restoreCursor()
+	self.tabBar:restoreCursor()
 
 	while true do
 		local event = {os.pullEventRaw()}
@@ -73,11 +69,5 @@ function Controller:run()
 		if not cancel then
 			cancel = self.tabBar:event(event)
 		end
-
-		if not cancel then
-			cancel = self.editor:event(event)
-		end
-
-		self.editor:restoreCursor()
 	end
 end

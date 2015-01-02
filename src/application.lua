@@ -30,6 +30,7 @@ loadLibrary(rootDirectory .. "/util/util.lua")
 loadLibrary(rootDirectory .. "/editor/controller.lua")
 loadLibrary(rootDirectory .. "/editor/theme.lua")
 loadLibrary(rootDirectory .. "/editor/editor.lua")
+loadLibrary(rootDirectory .. "/editor/content.lua")
 loadLibrary(rootDirectory .. "/editor/menu.lua")
 loadLibrary(rootDirectory .. "/editor/tab.lua")
 
