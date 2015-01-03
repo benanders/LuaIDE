@@ -39,10 +39,10 @@ SyntaxHighlighter.tags = {
 }
 
 --- Characters that should trigger a full redraw of the screen.
-SyntaxHighlighter.fullRedrawTriggers = "-[\"'"
+SyntaxHighlighter.fullRedrawTriggers = "-[]\"'"
 
---- Characters that act as word separators, in addition to whitespace.
-SyntaxHighlighter.separators = "./\\()\"'-:,.;<>~!@#$%^&*|+=[]{}`~?"
+--- Characters that are a valid identifier.
+SyntaxHighlighter.validIdentifiers = "0-9A-Za-z_"
 
 --- All items highlighted on a line-by-line basis.
 --- Can be Lua patterns.
@@ -69,15 +69,22 @@ SyntaxHighlighter.keywords = {
 		"true",
 		"false",
 		"nil",
+	},
+	["numbers"] = {
 		"[0-9]+",
 	},
 	["operators"] = {
 		"%+",
+		"%+=",
 		"%-",
+		"%-=",
 		"%%",
+		"%%=",
 		"#",
 		"%*",
+		"%*=",
 		"/",
+		"/=",
 		"%^",
 		"=",
 		"==",
@@ -87,10 +94,34 @@ SyntaxHighlighter.keywords = {
 		">",
 		">=",
 		"!",
+		"and",
+		"or",
+		"not",
 	},
 	["functions"] = {
 		"print",
 		"write",
+		"sleep",
+		"pairs",
+		"ipairs",
+		"loadstring",
+		"loadfile",
+		"dofile",
+		"rawset",
+		"rawget",
+		"setfenv",
+		"getfenv",
+		"assert",
+		"getmetatable",
+		"setmetatable",
+		"pcall",
+		"xpcall",
+		"type",
+		"unpack",
+		"tonumber",
+		"tostring",
+		"select",
+		"next",
 	},
 }
 
@@ -351,8 +382,73 @@ function SyntaxHighlighter:data(y, horizontalScroll, width)
 end
 
 
+--- Returns the kind for a word.
+function SyntaxHighlighter:kind(word)
+	-- Look for the word in each section of the keywords list
+	for section, options in pairs(SyntaxHighlighter.keywords) do
+		for _, option in pairs(options) do
+			if word:find("^" .. option .. "$") then
+				return section
+			end
+		end
+	end
+
+	return "text"
+end
+
+
 --- Highlights a piece of text, ignoring any mapped data.
 function SyntaxHighlighter:highlight(result, text)
-	table.insert(result, {["kind"] = "color", ["data"] = "text"})
-	table.insert(result, {["kind"] = "text", ["data"] = text})
+	-- Split into identifiers (letters/numbers), operators, and whitespace.
+	local position = 1
+	local currentKind = nil
+
+	while position <= text:len() do
+		local char = text:sub(position, position)
+		if char:match("^%s$") then
+			-- Whitespace is next
+			local after = text:find("[^%s]", position)
+			if not after then
+				after = text:len() + 1
+			end
+
+			local whitespace = text:sub(position, after - 1)
+			table.insert(result, {["kind"] = "text", ["data"] = whitespace})
+			position = after
+		elseif char:match("^[" .. SyntaxHighlighter.validIdentifiers .. "]$") then
+			-- A word is next
+			local after = text:find("[^" .. SyntaxHighlighter.validIdentifiers .. "]",
+				position)
+			if not after then
+				after = text:len() + 1
+			end
+
+			local word = text:sub(position, after - 1)
+			local kind = SyntaxHighlighter:kind(word)
+			if kind ~= currentKind then
+				table.insert(result, {["kind"] = "color", ["data"] = kind})
+				currentKind = kind
+			end
+
+			table.insert(result, {["kind"] = "text", ["data"] = word})
+			position = after
+		else
+			-- Some other operator
+			local after = text:find("[" .. SyntaxHighlighter.validIdentifiers .. "%s]",
+				position)
+			if not after then
+				after = text:len() + 1
+			end
+
+			local operator = text:sub(position, after - 1)
+			local kind = SyntaxHighlighter:kind(operator)
+			if kind ~= currentKind then
+				table.insert(result, {["kind"] = "color", ["data"] = kind})
+				currentKind = kind
+			end
+
+			table.insert(result, {["kind"] = "text", ["data"] = operator})
+			position = after
+		end
+	end
 end
