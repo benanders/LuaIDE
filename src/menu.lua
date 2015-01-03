@@ -9,6 +9,9 @@ MenuBar.__index = MenuBar
 --- The y location of the menu bar.
 MenuBar.y = 1
 
+--- The duration in seconds to wait when flashing a menu item.
+MenuBar.flashDuration = 0.1
+
 --- Items contained in the menu bar.
 MenuBar.items = {
 	{
@@ -54,13 +57,42 @@ end
 function MenuBar:setup()
 	local w = term.getSize()
 	self.win = window.create(term.native(), 1, MenuBar.y, w, 1)
-	self.focused = nil
+	self.flash = nil
+	self.focus = nil
+end
+
+
+--- Draws a menu item.
+function MenuBar:drawItem(item, flash)
+	term.setBackgroundColor(Theme["menu dropdown background"])
+	term.clear()
+
+	-- Render all the items
+	for i, text in pairs(item.contents) do
+		if i == flash then
+			term.setTextColor(Theme["menu dropdown flash text"])
+			term.setBackgroundColor(Theme["menu dropdown flash background"])
+		else
+			term.setTextColor(Theme["menu dropdown text"])
+			term.setBackgroundColor(Theme["menu dropdown background"])
+		end
+
+		term.setCursorPos(2, i + 1)
+		term.clearLine()
+		term.write(text)
+	end
 end
 
 
 --- Opens a menu item, blocking the event loop until it's closed.
 function MenuBar:open(index)
-	self.focused = index
+	-- Flash the menu item
+	term.setCursorBlink(false)
+	self.flash = index
+	self:draw()
+	sleep(MenuBar.flashDuration)
+	self.flash = nil
+	self.focus = index
 	self:draw()
 
 	-- Get the maximum width of all the items to display
@@ -81,15 +113,7 @@ function MenuBar:open(index)
 	-- Create the window
 	local win = window.create(term.native(), x, y, width, height)
 	term.redirect(win)
-	term.setTextColor(Theme["menu dropdown text"])
-	term.setBackgroundColor(Theme["menu dropdown background"])
-	term.clear()
-
-	-- Render all the items
-	for i, text in pairs(item.contents) do
-		term.setCursorPos(2, i + 1)
-		term.write(text)
-	end
+	self:drawItem(item)
 
 	-- Wait for a click
 	while true do
@@ -106,7 +130,13 @@ function MenuBar:open(index)
 				-- Clicked on the window somewhere
 				if cy >= y + 1 and cy < y + height - 1 then
 					-- Clicked on an item
-					local text = item.contents[cy - y]
+					-- Flash
+					local index = cy - y
+					self:drawItem(item, index)
+					sleep(MenuBar.flashDuration)
+
+					-- Trigger an event
+					local text = item.contents[index]
 					os.queueEvent("menu item trigger", text)
 					break
 				end
@@ -118,7 +148,7 @@ function MenuBar:open(index)
 		end
 	end
 
-	self.focused = nil
+	self.focus = nil
 	win.setVisible(false)
 end
 
@@ -133,12 +163,15 @@ function MenuBar:draw()
 	term.setCursorPos(2, 1)
 
 	for i, item in pairs(MenuBar.items) do
-		if i == self.focused then
-			term.setBackgroundColor(Theme["menu bar background focused"])
+		if i == self.focus then
 			term.setTextColor(Theme["menu bar text focused"])
+			term.setBackgroundColor(Theme["menu bar background focused"])
+		elseif i == self.flash then
+			term.setTextColor(Theme["menu bar flash text"])
+			term.setBackgroundColor(Theme["menu bar flash background"])
 		else
-			term.setBackgroundColor(Theme["menu bar background"])
 			term.setTextColor(Theme["menu bar text"])
+			term.setBackgroundColor(Theme["menu bar background"])
 		end
 
 		term.write(" " .. item.name .. " ")

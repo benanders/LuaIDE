@@ -14,8 +14,14 @@ Theme.load = function()
 		Theme["menu bar background focused"] = colors.gray
 		Theme["menu bar text"] = colors.black
 		Theme["menu bar text focused"] = colors.white
+		Theme["menu bar flash text"] = colors.white
+		Theme["menu bar flash background"] = colors.lightGray
+
+		-- Menu dropdown items
 		Theme["menu dropdown background"] = colors.gray
 		Theme["menu dropdown text"] = colors.white
+		Theme["menu dropdown flash text"] = colors.white
+		Theme["menu dropdown flash background"] = colors.lightGray
 
 		-- Tab bar
 		Theme["tab bar background"] = colors.white
