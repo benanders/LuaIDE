@@ -84,18 +84,19 @@ function MenuBar:drawItem(item, flash)
 end
 
 
---- Opens a menu item, blocking the event loop until it's closed.
-function MenuBar:open(index)
-	-- Flash the menu item
-	term.setCursorBlink(false)
+--- Flashes an item when clicked, then draws it as focused.
+function MenuBar:drawFlash(index)
 	self.flash = index
 	self:draw()
 	sleep(MenuBar.flashDuration)
 	self.flash = nil
 	self.focus = index
 	self:draw()
+end
 
-	-- Get the maximum width of all the items to display
+
+--- Returns the width of the window to create for a particular item index.
+function MenuBar:itemWidth(index)
 	local item = self.items[index]
 	local width = -1
 	for _, text in pairs(item.contents) do
@@ -105,10 +106,22 @@ function MenuBar:open(index)
 	end
 	width = width + 2
 
-	-- Other location metrics
+	return width
+end
+
+
+--- Opens a menu item, blocking the event loop until it's closed.
+function MenuBar:open(index)
+	-- Flash the menu item
+	term.setCursorBlink(false)
+	self:drawFlash(index)
+
+	-- Window location
+	local item = self.items[index]
 	local x = self:itemLocation(index)
 	local y = MenuBar.y + 1
 	local height = #item.contents + 2
+	local width = self:itemWidth(index)
 
 	-- Create the window
 	local win = window.create(term.native(), x, y, width, height)
@@ -130,12 +143,10 @@ function MenuBar:open(index)
 				-- Clicked on the window somewhere
 				if cy >= y + 1 and cy < y + height - 1 then
 					-- Clicked on an item
-					-- Flash
 					local index = cy - y
 					self:drawItem(item, index)
 					sleep(MenuBar.flashDuration)
 
-					-- Trigger an event
 					local text = item.contents[index]
 					os.queueEvent("menu item trigger", text)
 					break
