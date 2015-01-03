@@ -31,6 +31,7 @@ loadLibrary(rootDirectory .. "/tab.lua")
 loadLibrary(rootDirectory .. "/content.lua")
 loadLibrary(rootDirectory .. "/editor.lua")
 loadLibrary(rootDirectory .. "/highlighter.lua")
+loadLibrary(rootDirectory .. "/responder.lua")
 loadLibrary(rootDirectory .. "/theme.lua")
 loadLibrary(rootDirectory .. "/util.lua")
 

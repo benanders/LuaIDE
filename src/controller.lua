@@ -64,6 +64,10 @@ function Controller:run()
 		end
 
 		if not cancel then
+			cancel = Responder.event(event)
+		end
+
+		if not cancel then
 			cancel = self.menuBar:event(event)
 		end
 
