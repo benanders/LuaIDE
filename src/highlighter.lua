@@ -405,50 +405,36 @@ function SyntaxHighlighter:highlight(result, text)
 
 	while position <= text:len() do
 		local char = text:sub(position, position)
+		local index = true
+		local after = nil
+
 		if char:match("^%s$") then
 			-- Whitespace is next
-			local after = text:find("[^%s]", position)
-			if not after then
-				after = text:len() + 1
-			end
-
-			local whitespace = text:sub(position, after - 1)
-			table.insert(result, {["kind"] = "text", ["data"] = whitespace})
-			position = after
+			after = text:find("[^%s]", position)
+			index = false
 		elseif char:match("^[" .. SyntaxHighlighter.validIdentifiers .. "]$") then
 			-- A word is next
-			local after = text:find("[^" .. SyntaxHighlighter.validIdentifiers .. "]",
-				position)
-			if not after then
-				after = text:len() + 1
-			end
-
-			local word = text:sub(position, after - 1)
-			local kind = SyntaxHighlighter:kind(word)
-			if kind ~= currentKind then
-				table.insert(result, {["kind"] = "color", ["data"] = kind})
-				currentKind = kind
-			end
-
-			table.insert(result, {["kind"] = "text", ["data"] = word})
-			position = after
+			after = text:find("[^" .. SyntaxHighlighter.validIdentifiers .. "]", position)
 		else
 			-- Some other operator
-			local after = text:find("[" .. SyntaxHighlighter.validIdentifiers .. "%s]",
-				position)
-			if not after then
-				after = text:len() + 1
-			end
+			after = text:find("[" .. SyntaxHighlighter.validIdentifiers .. "%s]", position)
+		end
 
-			local operator = text:sub(position, after - 1)
-			local kind = SyntaxHighlighter:kind(operator)
+		if not after then
+			after = text:len() + 1
+		end
+
+		local data = text:sub(position, after - 1)
+
+		if index then
+			local kind = SyntaxHighlighter:kind(data)
 			if kind ~= currentKind then
 				table.insert(result, {["kind"] = "color", ["data"] = kind})
 				currentKind = kind
 			end
-
-			table.insert(result, {["kind"] = "text", ["data"] = operator})
-			position = after
 		end
+
+		table.insert(result, {["kind"] = "text", ["data"] = data})
+		position = after
 	end
 end
