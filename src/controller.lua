@@ -53,12 +53,15 @@ function Controller:run()
 
 	while true do
 		local event = {os.pullEventRaw()}
-
-		if event[1] == "terminate" then
-			break
-		end
-
 		local cancel = false
+
+		if event[1] == "terminate" or event[1] == "exit" then
+			break
+		elseif event[1] == "menu item close" or event[1] == "menu item trigger" then
+			-- Trigger a full redraw
+			self.menuBar:draw()
+			self.tabBar:draw()
+		end
 
 		if not cancel then
 			cancel = self.menuBar:event(event)

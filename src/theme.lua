@@ -11,7 +11,11 @@ Theme.load = function()
 	if term.isColor() then
 		-- Menu bar
 		Theme["menu bar background"] = colors.white
+		Theme["menu bar background focused"] = colors.gray
 		Theme["menu bar text"] = colors.black
+		Theme["menu bar text focused"] = colors.white
+		Theme["menu dropdown background"] = colors.gray
+		Theme["menu dropdown text"] = colors.white
 
 		-- Tab bar
 		Theme["tab bar background"] = colors.white

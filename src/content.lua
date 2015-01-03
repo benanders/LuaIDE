@@ -213,8 +213,10 @@ function Content:event(event)
 		self:key(event[2])
 	elseif event[1] == "mouse_click" or event[1] == "mouse_drag" then
 		self.editor:moveCursorToRelative(event[3] - self.editor:gutterSize(), event[4])
+		return true
 	end
 
 	self:updateDirty()
 	self:restoreCursor()
+	return false
 end
