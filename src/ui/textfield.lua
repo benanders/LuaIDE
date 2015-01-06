@@ -138,6 +138,15 @@ function TextField:char(character)
 end
 
 
+function TextField:click(x, y)
+	if y == self.y and x >= self.x and x < self.x + self.width then
+		local click = x - self.x + 1
+		local textWidth = self.text:len() - self.scroll + 1
+		self.cursor = math.min(click, textWidth)
+	end
+end
+
+
 function TextField:show()
 	local path = nil
 
@@ -164,6 +173,8 @@ function TextField:show()
 			end
 		elseif event[1] == "char" then
 			self:char(event[2])
+		elseif event[1] == "mouse_click" or event[1] == "mouse_drag" then
+			self:click(event[3], event[4] - self.y + 1)
 		end
 	end
 
