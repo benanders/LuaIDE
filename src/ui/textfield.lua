@@ -147,6 +147,19 @@ function TextField:click(x, y)
 end
 
 
+function TextField:moveToEnd()
+	if self.text:len() < self.width then
+		-- End on screen
+		self.scroll = 0
+		self.cursor = self.text:len() + 1
+	else
+		-- Off screen
+		self.scroll = self.text:len() - self.width + 1
+		self.cursor = self.width
+	end
+end
+
+
 function TextField:show()
 	local path = nil
 
@@ -158,10 +171,6 @@ function TextField:show()
 		term.setCursorPos(self.x + self.cursor - 1, self.y)
 
 		local event = {os.pullEventRaw()}
-
-		if self.eventCallback then
-			self.eventCallback(event)
-		end
 
 		if event[1] == "terminate" then
 			os.queueEvent("exit")
@@ -175,6 +184,14 @@ function TextField:show()
 			self:char(event[2])
 		elseif event[1] == "mouse_click" or event[1] == "mouse_drag" then
 			self:click(event[3], event[4] - self.y + 1)
+		end
+
+		if self.eventCallback then
+			local newText = self.eventCallback(event)
+			if newText then
+				self.text = newText
+				self:moveToEnd()
+			end
 		end
 	end
 
