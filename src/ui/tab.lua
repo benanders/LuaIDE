@@ -156,7 +156,10 @@ function TabBar:draw()
 	term.redirect(self.win)
 	self.win.setVisible(true)
 
-	Util.clear(Theme["tab bar background"], Theme["tab bar text focused"])
+	term.setBackgroundColor(Theme["tab bar background"])
+	term.setTextColor(Theme["tab bar text focused"])
+	term.clear()
+	term.setCursorPos(1, 1)
 
 	for i, name in pairs(names) do
 		local actualName = TabBar.sanitiseName(name)
@@ -324,9 +327,15 @@ function ContentTabLink:setup()
 end
 
 
---- Restore the cursor on the current editor
-function ContentTabLink:restoreCursor()
-	return self.contentManager.contents[self.contentManager.current]:restoreCursor()
+--- Returns the current tab.
+function ContentTabLink:current()
+	return self.contentManager.contents[self.contentManager.current]
+end
+
+
+--- Returns the number of tabs currently open.
+function ContentTabLink:openCount()
+	return #self.contentManager.contents
 end
 
 

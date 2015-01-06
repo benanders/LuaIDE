@@ -26,20 +26,37 @@ local function loadLibrary(path)
 end
 
 loadLibrary(rootDirectory .. "/controller.lua")
-loadLibrary(rootDirectory .. "/menu.lua")
-loadLibrary(rootDirectory .. "/tab.lua")
-loadLibrary(rootDirectory .. "/content.lua")
-loadLibrary(rootDirectory .. "/editor.lua")
-loadLibrary(rootDirectory .. "/highlighter.lua")
-loadLibrary(rootDirectory .. "/responder.lua")
 loadLibrary(rootDirectory .. "/theme.lua")
-loadLibrary(rootDirectory .. "/util.lua")
+
+loadLibrary(rootDirectory .. "/editor/content.lua")
+loadLibrary(rootDirectory .. "/editor/editor.lua")
+loadLibrary(rootDirectory .. "/editor/highlighter.lua")
+loadLibrary(rootDirectory .. "/editor/file.lua")
+
+loadLibrary(rootDirectory .. "/ui/menu.lua")
+loadLibrary(rootDirectory .. "/ui/tab.lua")
+loadLibrary(rootDirectory .. "/ui/responder.lua")
 
 
 
 --
 --  Main
 --
+
+--- Print `text` centered on the current cursor line.
+--- Moves the cursor to the line below it after writing.
+local function center(text)
+	local w = term.getSize()
+	local _, y = term.getCursorPos()
+	if text:len() <= w then
+		term.setCursorPos(math.floor(w / 2 - text:len() / 2) + 1, y)
+		term.write(text)
+		term.setCursorPos(1, y + 1)
+	else
+		term.setCursorPos(1, y)
+		print(text)
+	end
+end
 
 local displayEnding = false
 
@@ -64,8 +81,12 @@ if err then
 end
 
 if displayEnding then
-	Util.clear(colors.black, colors.white)
-	Util.center("Thanks for using LuaIDE " .. Global.version)
-	Util.center("By GravityScore")
+	term.setBackgroundColor(colors.black)
+	term.setTextColor(colors.white)
+	term.clear()
+	term.setCursorPos(1, 1)
+
+	center("Thanks for using LuaIDE " .. Global.version)
+	center("By GravityScore")
 	print()
 end

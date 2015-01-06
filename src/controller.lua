@@ -20,19 +20,17 @@ end
 
 
 function Controller:setup(args)
-	local project = nil
+	local path = nil
 	if #args >= 1 then
 		local file = shell.dir() .. "/" .. args[1]
+		file = file:gsub("/+", "/")
+
 		if not fs.isDir(file) then
-			project = file
+			path = file
 		else
 			printError("Cannot edit a directory")
 			return false
 		end
-	else
-		print("Usage:")
-		print("  luaide <filepath>")
-		return false
 	end
 
 	term.setBackgroundColor(colors.black)
@@ -42,6 +40,12 @@ function Controller:setup(args)
 
 	self.menuBar = MenuBar.new()
 	self.tabBar = ContentTabLink.new()
+	self.responder = Responder.new(self)
+
+	if path then
+		self.tabBar:current():edit(path)
+	end
+
 	return true
 end
 
@@ -57,14 +61,17 @@ function Controller:run()
 
 		if event[1] == "terminate" or event[1] == "exit" then
 			break
-		elseif event[1] == "menu item close" or event[1] == "menu item trigger" then
+		end
+
+		-- Trigger the responder before redrawing, so we can display dialogs, etc.
+		if event[1] == "menu item trigger" and not cancel then
+			cancel = self.responder:trigger(event[2])
+		end
+
+		if event[1] == "menu item close" or event[1] == "menu item trigger" then
 			-- Trigger a full redraw
 			self.menuBar:draw()
 			self.tabBar:draw()
-		end
-
-		if not cancel then
-			cancel = Responder.event(event)
 		end
 
 		if not cancel then
@@ -75,6 +82,6 @@ function Controller:run()
 			cancel = self.tabBar:event(event)
 		end
 
-		self.tabBar:restoreCursor()
+		self.tabBar:current():restoreCursor()
 	end
 end

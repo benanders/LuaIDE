@@ -25,9 +25,46 @@ function Content:setup()
 	self.height = h - Content.startY + 1
 	self.width = w
 	self.win = window.create(term.native(), 1, Content.startY, self.width, self.height, false)
-	self.editor = Editor.new({"hello", "wow", "testing"}, self.width, self.height)
+	self.editor = Editor.new({""}, self.width, self.height)
+	self.path = nil
 	self.highlighter = SyntaxHighlighter.new()
 	self:updateSyntaxHighlighting("")
+end
+
+
+--- Set the file currently being edited in this tab.
+--- Discards the current file and all changes and replaces it.
+--- Returns nil on success and a string error message on failure.
+function Content:edit(path)
+	local lines, err = File.load(path)
+
+	if lines then
+		self.path = path
+		self.editor = Editor.new(lines, self.width, self.height)
+		self:updateSyntaxHighlighting("")
+	else
+		Popup.errorPopup("Failed to open file", err)
+	end
+end
+
+
+--- Save the contents of the editor.
+function Content:save(path)
+	if not self.path then
+		self.path = path
+	end
+	if not path then
+		path = self.path
+	end
+
+	if not path then
+		Popup.errorPopup("No path specified to save to!")
+	end
+
+	local err = File.save(self.editor.lines, path)
+	if err then
+		Popup.errorPopup("Failed to save file", err)
+	end
 end
 
 

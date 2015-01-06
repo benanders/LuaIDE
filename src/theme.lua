@@ -53,6 +53,13 @@ Theme.load = function()
 		Theme["functions"] = colors.magenta
 		Theme["string"] = colors.red
 		Theme["comment"] = colors.lightGray
+
+		-- File popup
+		Theme["file popup background"] = colors.white
+		Theme["file popup text"] = colors.black
+		Theme["file popup file"] = colors.black
+		Theme["file popup folder"] = colors.lime
+		Theme["file popup readonly"] = colors.red
 	else
 
 	end

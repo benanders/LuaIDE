@@ -1,111 +1,61 @@
 
 --
---  Utility APIs
+--  Popup
 --
 
-Util = {}
+--- A popup that displays a message.
+Popup = {}
+Popup.__index = Popup
 
 
---- Clear the background of the terminal to `bg`, and
---- set the text color to `fg`
-function Util.clear(bg, fg)
-	term.setBackgroundColor(bg)
-	term.setTextColor(fg)
+--- Displays an error message to the user.
+--- Blocks until the user clicks the dismiss button.
+function Popup.errorPopup(...)
+
+end
+
+
+--- Opens a file browsing dialog.
+--- Returns the selected path, or nil if the operation was canceled.
+function Popup.filePopup(message)
+	local w, h = term.native().getSize()
+	local win = window.create(term.native(), 1, 1, w, h)
+
+	term.redirect(win)
+	term.setBackgroundColor(Theme["file popup background"])
+	term.setTextColor(Theme["file popup text"])
 	term.clear()
-	term.setCursorPos(1, 1)
+
+	term.setCursorPos(2, 2)
+	term.write(message)
+
+	term.setCursorPos(2, 4)
+	term.write("Path: ")
+
+	local path =
 end
 
 
---- Print `text` centered on the current cursor line.
---- Moves the cursor to the line below it after writing.
-function Util.center(text)
-	local w = term.getSize()
-	local _, y = term.getCursorPos()
-	if text:len() <= w then
-		term.setCursorPos(math.floor(w / 2 - text:len() / 2) + 1, y)
-		term.write(text)
-		term.setCursorPos(1, y + 1)
-	else
-		term.setCursorPos(1, y)
-		print(text)
-	end
-end
+
+--
+--  Text Field
+--
+
+--- An editable text field.
+TextField = {}
+TextField.__index = TextField
 
 
---- Fills the given area on the screen with a color.
-function Util.fill(x, y, width, height, color)
-	local w, h = term.getSize()
-	if width == -1 then
-		width = w
-	end
-
-	if height == -1 then
-		height = h
-	end
-
-	if x == -1 then
-		x = math.floor(w / 2 - width / 2) + 1
-	end
-
-	if y == -1 then
-		y = math.floor(h / 2 - height / 2) + 1
-	end
-
-	term.setBackgroundColor(color)
-	local str = string.rep(" ", width)
-	for i = y, y + height - 1 do
-		term.setCursorPos(x, i)
-		term.write(str)
-	end
-end
-
-
---- Writes the given text at the specified location.
-function Util.write(x, y, text)
-	if x == -1 then
-		local w = term.getSize()
-		x = math.floor(w / 2 - text:len() / 2) + 1
-	end
-
-	term.setCursorPos(x, y)
-	term.write(text)
-end
-
-
---- Renders an error.
-function Util.displayError(err)
-	Util.clear(Theme.background, Theme.text)
-	Util.fill(1, 3, -1, 3, Theme.subtle)
-	Util.write(-1, 4, "Firewolf Crash")
-	term.setBackgroundColor(Theme.background)
-
-	term.setCursorPos(1, 9)
-	Util.center("Firewolf has crashed unexpectedly.")
-	Util.center("Here's the error:")
-	print()
-	Util.center(err)
-	print()
-	Util.center("Press any key to exit.")
-end
-
-
---- Waits for a key press and stops the key from being displayed.
-function Util.waitForKey()
-	os.pullEvent("key")
-	os.queueEvent("")
-	os.pullEvent()
-end
-
-
-local function copyTable(source, destination)
-	for key, value in pairs(source) do
-		destination[key] = value
-	end
+--- Create a new text field.
+function TextField.new(...)
+	local self = setmetatable({}, TextField)
+	self:setup(...)
+	return self
 end
 
 
 --- Creates a text field.
-function Util.textField(startX, startY, length, startingText, placeholder,
+function Popup.textField(startX, startY, length, startingText, backgroundColor, placeholder,
 		shouldHideText, originalHistory, eventCallback)
 	local horizontalScroll = 1
 	local cursorPosition = 1
@@ -128,7 +78,7 @@ function Util.textField(startX, startY, length, startingText, placeholder,
 
 	while true do
 		term.setCursorBlink(true)
-		term.setBackgroundColor(Theme.accent)
+		term.setBackgroundColor(backgroundColor)
 		term.setTextColor(Theme.text)
 
 		term.setCursorPos(startX, startY)
