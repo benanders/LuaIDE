@@ -183,7 +183,7 @@ function TextField:show()
 		elseif event[1] == "char" then
 			self:char(event[2])
 		elseif event[1] == "mouse_click" or event[1] == "mouse_drag" then
-			self:click(event[3], event[4] - self.y + 1)
+			self:click(event[3], event[4] - self.y + 2)
 		end
 
 		if self.eventCallback then

@@ -8,9 +8,10 @@ FileDialogue = {}
 FileDialogue.__index = FileDialogue
 
 FileDialogue.y = 3
+FileDialogue.listStartY = 6
 
 FileDialogue.ignore = {
-	".git",
+	-- ".git",
 	".gitignore",
 	".DS_Store",
 }
@@ -27,6 +28,7 @@ end
 function FileDialogue:setup(title)
 	self.title = title
 	self.dir = shell.dir()
+	self.listCache = self:list()
 	self.height = -1
 	self.scroll = 0
 end
@@ -74,17 +76,13 @@ end
 
 
 function FileDialogue:drawFileList()
-	local list = self:list()
-	local startY = 6
-	local height = self.height - startY
-
 	term.setBackgroundColor(Theme["file dialogue background"])
 
-	for y = 1, math.min(height) do
-		term.setCursorPos(2, y + startY - 1)
+	for y = 1, math.min(self:listHeight()) do
+		term.setCursorPos(2, y + FileDialogue.listStartY - 1)
 		term.clearLine()
 
-		local file = list[y]
+		local file = self.listCache[y + self.scroll]
 		if file then
 			local path = fs.combine(self.dir, file)
 
@@ -98,13 +96,28 @@ function FileDialogue:drawFileList()
 			term.write(file)
 		end
 	end
+
+	term.setTextColor(Theme["file dialogue text blurred"])
+	if #self.listCache - self.scroll > self:listHeight() then
+		term.setCursorPos(1, self:listHeight() + FileDialogue.listStartY - 1)
+		term.write("v")
+	end
+	if self.scroll > 0 then
+		term.setCursorPos(1, FileDialogue.listStartY)
+		term.write("^")
+	end
+end
+
+
+function FileDialogue:listHeight()
+	return self.height - FileDialogue.listStartY
 end
 
 
 function FileDialogue:clickOnItem(name)
 	local path = fs.combine(self.dir, name)
 	if fs.isDir(path) then
-		self.dir = path
+		self:setDir(path)
 		return "/" .. path
 	else
 		return "/" .. path
@@ -114,8 +127,25 @@ end
 
 function FileDialogue:setDir(dir)
 	self.dir = shell.resolve("/" .. dir)
+	self.listCache = self:list()
 	self.scroll = 0
-	selfCopy:drawFileList()
+	self:drawFileList()
+end
+
+
+function FileDialogue:scrollUp()
+	if self.scroll > 0 then
+		self.scroll = self.scroll - 1
+		self:drawFileList()
+	end
+end
+
+
+function FileDialogue:scrollDown()
+	if self.scroll + self:listHeight() < #self.listCache then
+		self.scroll = self.scroll + 1
+		self:drawFileList()
+	end
 end
 
 
@@ -151,25 +181,42 @@ function FileDialogue:show()
 	field:moveToEnd()
 
 	-- Event callback
-	local listStartY = y + 5
+	local listStartY = y + FileDialogue.listStartY - 1
 	local selfCopy = self
 
 	field:setCallback(function(event)
 		if event[1] == "mouse_click" then
 			local cx = event[3]
 			local cy = event[4]
-			if cy >= listStartY and cy < listStartY + self.height then
-				local list = selfCopy:list()
-				local item = list[cy - listStartY + 1]
+			if cx > 1 and cy >= listStartY and cy < listStartY + selfCopy:listHeight() then
+				local item = selfCopy.listCache[cy - listStartY + 1]
 				if item then
 					local result = selfCopy:clickOnItem(item)
 					selfCopy:drawFileList()
 					return result
 				end
+			elseif cx == 1 then
+				if cy == listStartY then
+					self:scrollUp()
+				elseif cy == listStartY + selfCopy:listHeight() - 1 then
+					self:scrollDown()
+				end
 			end
-		elseif event[1] == "char" or event[1] == "key" then
+		elseif event[1] == "char" or (event[1] == "key" and event[2] == keys.backspace) then
 			if fs.isDir(field.text) or fs.isDir(fs.getDir(field.text)) then
 				selfCopy:setDir(field.text)
+			end
+		elseif event[1] == "key" then
+			if event[2] == keys.up then
+				self:scrollUp()
+			elseif event[2] == keys.down then
+				self:scrollDown()
+			end
+		elseif event[1] == "mouse_scroll" then
+			if event[2] == -1 then
+				self:scrollUp()
+			else
+				self:scrollDown()
 			end
 		end
 	end)

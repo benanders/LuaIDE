@@ -11,6 +11,9 @@ Content.__index = Content
 --- The starting y position of the tab.
 Content.startY = 3
 
+--- The width of a tab in spaces
+Content.tabWidth = 2
+
 
 --- Create a new content window.
 function Content.new(...)
@@ -232,6 +235,11 @@ function Content:key(key)
 	elseif key == keys.backspace then
 		local character = self.editor:backspace()
 		self:updateSyntaxHighlighting(character)
+	elseif key == keys.tab then
+		for i = 1, Content.tabWidth do
+			self.editor:insertCharacter(" ")
+		end
+		self:updateSyntaxHighlighting(" ")
 	elseif key == keys.enter then
 		self.editor:insertNewline()
 		self:updateSyntaxHighlighting("\n")
