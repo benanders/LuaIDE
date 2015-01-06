@@ -70,7 +70,11 @@ end
 
 --- Returns the name of the file being edited.
 function Content:name()
-	return "test"
+	if not self.path then
+		return "untitled"
+	else
+		return fs.getName(self.path)
+	end
 end
 
 

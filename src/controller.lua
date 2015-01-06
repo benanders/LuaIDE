@@ -50,10 +50,16 @@ function Controller:setup(args)
 end
 
 
---- Run the main loop.
-function Controller:run()
+--- Draw the whole IDE.
+function Controller:draw()
 	self.menuBar:draw()
 	self.tabBar:draw()
+end
+
+
+--- Run the main loop.
+function Controller:run()
+	self:draw()
 
 	while true do
 		local event = {os.pullEventRaw()}
@@ -63,15 +69,18 @@ function Controller:run()
 			break
 		end
 
-		-- Trigger the responder before redrawing, so we can display dialogs, etc.
-		if event[1] == "menu item trigger" and not cancel then
-			cancel = self.responder:trigger(event[2])
+		-- Trigger a redraw so we can close the menu before displaying any menu items, etc.
+		if event[1] == "menu item close" or event[1] == "menu item trigger" then
+			self:draw()
 		end
 
-		if event[1] == "menu item close" or event[1] == "menu item trigger" then
-			-- Trigger a full redraw
-			self.menuBar:draw()
-			self.tabBar:draw()
+		if event[1] == "menu item trigger" and not cancel then
+			cancel = self.responder:trigger(event[2])
+
+			-- If some event was triggered, then redraw fully
+			if cancel then
+				self:draw()
+			end
 		end
 
 		if not cancel then

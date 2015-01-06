@@ -54,12 +54,19 @@ Theme.load = function()
 		Theme["string"] = colors.red
 		Theme["comment"] = colors.lightGray
 
-		-- File popup
-		Theme["file popup background"] = colors.white
-		Theme["file popup text"] = colors.black
-		Theme["file popup file"] = colors.black
-		Theme["file popup folder"] = colors.lime
-		Theme["file popup readonly"] = colors.red
+		-- Panel
+		Theme["panel text"] = colors.white
+		Theme["panel background"] = colors.gray
+		Theme["panel close text"] = colors.red
+		Theme["panel close background"] = colors.gray
+
+		-- File dialogue
+		Theme["file dialogue background"] = colors.gray
+		Theme["file dialogue text"] = colors.white
+		Theme["file dialogue text blurred"] = colors.lightGray
+		Theme["file dialogue file"] = colors.white
+		Theme["file dialogue folder"] = colors.lime
+		Theme["file dialogue readonly"] = colors.red
 	else
 
 	end

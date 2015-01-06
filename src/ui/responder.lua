@@ -35,6 +35,11 @@ function Responder.toCamelCase(identifier)
 		end
 	end
 
+	-- Special case the new function
+	if result == "new" then
+		result = "newFile"
+	end
+
 	return result
 end
 
@@ -43,6 +48,35 @@ function Responder:trigger(itemName)
 	local name = Responder.toCamelCase(itemName)
 	if self[name] then
 		self[name](self)
+		return true
+	end
+
+	return false
+end
+
+
+function Responder:about()
+	local panel = Panel.new()
+	panel:center("Mimic " .. Global.version)
+	panel:empty()
+	panel:center("Made by GravityScore")
+	panel:show()
+end
+
+
+function Responder:newFile()
+	-- Open a new tab
+	self.controller.tabBar:create()
+	self.controller.tabBar:switch(self.controller.tabBar:openCount())
+end
+
+
+function Responder:open()
+	local dialogue = FileDialogue.new("Select a file to open...")
+	local path = dialogue:show()
+	if path then
+		self:newFile()
+		self.controller.tabBar:current():edit(path)
 	end
 end
 

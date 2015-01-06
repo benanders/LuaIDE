@@ -36,6 +36,9 @@ loadLibrary(rootDirectory .. "/editor/file.lua")
 loadLibrary(rootDirectory .. "/ui/menu.lua")
 loadLibrary(rootDirectory .. "/ui/tab.lua")
 loadLibrary(rootDirectory .. "/ui/responder.lua")
+loadLibrary(rootDirectory .. "/ui/dialogue.lua")
+loadLibrary(rootDirectory .. "/ui/panel.lua")
+loadLibrary(rootDirectory .. "/ui/textfield.lua")
 
 
 

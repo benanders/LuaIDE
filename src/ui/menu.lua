@@ -77,7 +77,7 @@ function MenuBar:drawItem(item, flash)
 			term.setBackgroundColor(Theme["menu dropdown background"])
 		end
 
-		term.setCursorPos(2, i + 1)
+		term.setCursorPos(3, i + 1)
 		term.clearLine()
 		term.write(text)
 	end
@@ -104,7 +104,7 @@ function MenuBar:itemWidth(index)
 			width = text:len()
 		end
 	end
-	width = width + 2
+	width = width + 4
 
 	return width
 end
