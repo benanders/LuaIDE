@@ -16,6 +16,14 @@ function Panel.new(...)
 end
 
 
+--- Create an error panel.
+function Panel.error(...)
+	local panel = Panel.new()
+	panel:center(...)
+	panel:show()
+end
+
+
 function Panel:setup()
 	self.lines = {}
 	self.width = 0

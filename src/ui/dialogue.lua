@@ -11,7 +11,7 @@ FileDialogue.y = 3
 FileDialogue.listStartY = 6
 
 FileDialogue.ignore = {
-	-- ".git",
+	".git",
 	".gitignore",
 	".DS_Store",
 }
@@ -203,8 +203,10 @@ function FileDialogue:show()
 				end
 			end
 		elseif event[1] == "char" or (event[1] == "key" and event[2] == keys.backspace) then
-			if fs.isDir(field.text) or fs.isDir(fs.getDir(field.text)) then
+			if fs.isDir(field.text) then
 				selfCopy:setDir(field.text)
+			elseif fs.isDir(fs.getDir(field.text)) then
+				selfCopy:setDir(fs.getDir(field.text))
 			end
 		elseif event[1] == "key" then
 			if event[2] == keys.up then
@@ -224,7 +226,7 @@ function FileDialogue:show()
 	-- Show
 	self:drawFileList()
 	local result = field:show()
-	if result:len() == 0 then
+	if result and result:len() == 0 then
 		result = nil
 	end
 

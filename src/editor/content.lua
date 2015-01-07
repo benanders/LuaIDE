@@ -35,18 +35,30 @@ function Content:setup()
 end
 
 
+--- Open a set of lines
+function Content:open(path, lines)
+	self.path = path
+	self.editor = Editor.new(lines, self.width, self.height)
+	self:updateSyntaxHighlighting("")
+end
+
+
 --- Set the file currently being edited in this tab.
 --- Discards the current file and all changes and replaces it.
 --- Returns nil on success and a string error message on failure.
 function Content:edit(path)
-	local lines, err = File.load(path)
+	if fs.isDir(path) then
+		Panel.error("Couldn't open file.", "", "Cannot edit a", "directory.")
+	elseif fs.exists(path) then
+		local lines, err = File.load(path)
 
-	if lines then
-		self.path = path
-		self.editor = Editor.new(lines, self.width, self.height)
-		self:updateSyntaxHighlighting("")
+		if lines then
+			self:open(path, lines)
+		else
+			Popup.errorPopup("Failed to open file", err)
+		end
 	else
-		Popup.errorPopup("Failed to open file", err)
+		self:open(path, {""})
 	end
 end
 
@@ -78,6 +90,12 @@ function Content:name()
 	else
 		return fs.getName(self.path)
 	end
+end
+
+
+--- Returns true if the content is unedited
+function Content:isUnedited()
+	return self.path == nil and #self.editor.lines == 1 and self.editor.lines[1]:len() == 0
 end
 
 

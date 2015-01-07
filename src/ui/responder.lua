@@ -74,8 +74,11 @@ end
 function Responder:open()
 	local dialogue = FileDialogue.new("Select a file to open...")
 	local path = dialogue:show()
-	if path then
-		self:newFile()
+	if path and not fs.isDir(path) then
+		if not self.controller.tabBar:current():isUnedited() then
+			self:newFile()
+		end
+
 		self.controller.tabBar:current():edit(path)
 	end
 end
